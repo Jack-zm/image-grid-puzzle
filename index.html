@@ -101,6 +101,22 @@
       repeating-conic-gradient(#f1f2f7 0% 25%, #fff 0% 50%) 0 0 / 22px 22px;
   }
   .holder canvas{max-width:100%; max-height:420px; border-radius:6px; display:block}
+  /* 缩略图悬停预览：默认隐藏，鼠标悬停当前结果时显示半透明遮罩 + 居中「预览」按钮 */
+  .preview-wrap{position:relative; border-radius:12px; overflow:hidden}
+  .pv-overlay{
+    position:absolute; top:0; left:0; right:0; bottom:0; z-index:2;
+    background:rgba(0,0,0,.45);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .18s ease;
+    pointer-events:none;
+  }
+  .preview-wrap:hover .pv-overlay{opacity:1; pointer-events:auto}
+  .pv-btn{
+    background:rgba(255,255,255,.94); color:#1f2430; border:none; border-radius:10px;
+    padding:10px 26px; font-size:14px; font-weight:600; cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.3); transition:background .15s;
+  }
+  .pv-btn:hover{background:#fff}
   /* 悬浮预览浮层 */
   .modal{position:fixed; top:0; left:0; right:0; bottom:0; z-index:1000; display:flex; align-items:center; justify-content:center}
   .modal[hidden]{display:none}
@@ -189,8 +205,12 @@
       </figure>
       <figure>
         <figcaption>当前结果<span class="tag pending" id="tagCurrent">—</span></figcaption>
-        <div class="holder" id="pvCurrent"><span>上传图片后点击「处理」</span></div>
-        <button class="btn-ghost" id="btnPreview" style="width:100%; margin-top:10px">🔍 悬浮预览</button>
+        <div class="preview-wrap">
+          <div class="holder" id="pvCurrent"><span>上传图片后点击「处理」</span></div>
+          <div class="pv-overlay">
+            <button class="pv-btn" id="btnPreview">预览</button>
+          </div>
+        </div>
       </figure>
     </div>
 
