@@ -124,6 +124,11 @@
       <div class="dz-file" id="dzImageFile"></div>
     </div>
     <div class="hint">可再次上传任意图片（包括之前处理的结果），配合种子即可还原。</div>
+    <div class="seed-row" style="margin-top:10px">
+      <input id="urlImage" placeholder="粘贴图片链接（https://…）" spellcheck="false" autocomplete="off">
+      <button class="btn-plain" id="btnLoadUrl">加载链接</button>
+    </div>
+    <div class="hint">还支持：在其他网页<strong>右键复制图片</strong>、截图后直接 <strong>Ctrl+V 粘贴</strong>，或复制图片链接粘贴到上方输入框后点「加载链接」。</div>
     <input type="file" id="fileImage" accept="image/*" hidden>
 
     <h2><span class="step-num">2</span>网格设置</h2>
@@ -467,22 +472,107 @@ function parseSeedStr(s) {
     }
   });
 
-  /* ---- 上传入口 ---- */
+  /* ---- 上传入口（本地文件 / 剪贴板 / 图片链接） ---- */
+  function acceptImage(obj, sourceNote) {
+    const clone = document.createElement('canvas');
+    clone.width = obj.canvas.width; clone.height = obj.canvas.height;
+    clone.getContext('2d').drawImage(obj.canvas, 0, 0);
+    state.original = obj;
+    state.current = { canvas: clone };
+    state.activeSeed = null;
+    $('dzImageFile').textContent = (obj.name || '图片') +
+      (obj.size != null ? ' · ' + fmtSize(obj.size) : '') +
+      '（' + obj.canvas.width + '×' + obj.canvas.height + '）' + (sourceNote ? ' · ' + sourceNote : '');
+    setTag('tagOriginal', '已就绪', 'ready');
+    setTag('tagCurrent', '原始', 'pending');
+    showCanvas('pvOriginal', obj.canvas, '');
+    showCanvas('pvCurrent', clone, '');
+    status((sourceNote ? '已载入' + sourceNote + '：' : '图片已载入：') + (obj.name || '') +
+      '。未输入种子时按网格行列自动生成随机种子；或粘贴种子后点击「处理」。', 'ok');
+  }
+
   bindUpload('dzImage', 'fileImage', function (file) {
-    loadImage(file, MAX_DIM).then(function (obj) {
-      const clone = document.createElement('canvas');
-      clone.width = obj.canvas.width; clone.height = obj.canvas.height;
-      clone.getContext('2d').drawImage(obj.canvas, 0, 0);
-      state.original = obj;
-      state.current = { canvas: clone };
-      state.activeSeed = null;
-      $('dzImageFile').textContent = obj.name + ' · ' + fmtSize(obj.size) + '（' + obj.canvas.width + '×' + obj.canvas.height + '）';
-      setTag('tagOriginal', '已就绪', 'ready');
-      setTag('tagCurrent', '原始', 'pending');
-      showCanvas('pvOriginal', obj.canvas, '');
-      showCanvas('pvCurrent', clone, '');
-      status('图片已载入。未输入种子时按网格行列自动生成随机种子；或粘贴种子后点击「处理」。', 'ok');
-    }).catch(function (e) { status(e.message, 'err'); });
+    loadImage(file, MAX_DIM)
+      .then(function (obj) { acceptImage(obj, '本地文件'); })
+      .catch(function (e) { status(e.message, 'err'); });
+  });
+
+  /* 图片链接：优先带 CORS 加载，失败再普通加载并检测跨域污染 */
+  function loadFromUrl(url) {
+    url = String(url || '').trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) { status('链接格式无效，请输入 https:// 开头的图片地址', 'warn'); return; }
+    status('正在加载链接图片…', 'ok');
+    const tryLoad = function (cors) {
+      return new Promise(function (resolve, reject) {
+        const img = new Image();
+        if (cors) img.crossOrigin = 'anonymous';
+        img.onload = function () { resolve(img); };
+        img.onerror = function () { reject(new Error(cors ? 'cors' : 'load')); };
+        img.src = url;
+      });
+    };
+    tryLoad(true)
+      .then(function (img) { acceptUrlImage(img, '链接图片'); })
+      .catch(function () {
+        tryLoad(false)
+          .then(function (img) { acceptUrlImage(img, '链接图片'); })
+          .catch(function () { status('链接图片加载失败：该地址可能无效或存在防盗链限制', 'err'); });
+      });
+  }
+  function acceptUrlImage(img, sourceNote) {
+    const c = document.createElement('canvas');
+    let w = img.naturalWidth, h = img.naturalHeight;
+    const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+    w = Math.round(w * scale); h = Math.round(h * scale);
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    let tainted = false;
+    try { ctx.getImageData(0, 0, 1, 1); } catch (err) { tainted = true; }
+    if (tainted) {
+      status('该图片链接的站点未允许跨域读取像素（CORS），无法处理。请下载图片后本地上传，或右键复制图片后直接粘贴。', 'err');
+      return;
+    }
+    acceptImage({ canvas: c, name: url, size: null }, sourceNote);
+  }
+
+  /* 剪贴板：支持网页右键复制的图片、截图等（Ctrl+V） */
+  function handleClipboardImage(file) {
+    loadImage(file, MAX_DIM)
+      .then(function (obj) {
+        if (!obj.name) obj.name = '剪贴板图片';
+        acceptImage(obj, '剪贴板粘贴');
+      })
+      .catch(function (e) { status('剪贴板图片加载失败：' + e.message, 'err'); });
+  }
+  document.addEventListener('paste', function (e) {
+    const cd = e.clipboardData || window.clipboardData;
+    let imgItem = null;
+    if (cd && cd.items) {
+      for (let i = 0; i < cd.items.length; i++) {
+        if (cd.items[i].type && cd.items[i].type.indexOf('image/') === 0) { imgItem = cd.items[i]; break; }
+      }
+    }
+    if (imgItem) {
+      const file = imgItem.getAsFile && imgItem.getAsFile();
+      if (file) { e.preventDefault(); handleClipboardImage(file); return; }
+    }
+    // 文本粘贴：非输入框内、且是图片链接时自动加载
+    const t = e.target;
+    const isField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+    if (!isField && cd) {
+      const text = (cd.getData('text/plain') || '').trim();
+      if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|bmp|avif)([?#]\S*)?$/i.test(text)) {
+        e.preventDefault();
+        loadFromUrl(text);
+      }
+    }
+  });
+
+  /* 链接输入框：按钮或回车加载 */
+  $('btnLoadUrl').addEventListener('click', function () { loadFromUrl($('urlImage').value); });
+  $('urlImage').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') loadFromUrl($('urlImage').value);
   });
 
   /* ---- 种子交互 ---- */
