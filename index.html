@@ -143,9 +143,8 @@
     <div class="seed-row">
       <input id="seed" placeholder="种子（可粘贴；处理后会填入本次使用的种子）" spellcheck="false" autocomplete="off">
       <button class="btn-plain" id="btnCopySeed" title="复制种子">复制</button>
-      <button class="btn-plain" id="btnClearMem" title="清除本浏览器记住的种子">清除记忆</button>
     </div>
-    <div class="hint" id="memHint"></div>
+    <div class="hint">本页面<strong>不保存任何使用记录</strong>：关闭或刷新后，网格恢复默认 8×8、种子清空，不会残留上次访问的信息。</div>
 
     <h2><span class="step-num">4</span>处理</h2>
     <div class="actions">
@@ -304,7 +303,6 @@ function parseSeedStr(s) {
   /* ---- 网格行列：以变量形式存储，默认 8×8，由输入框控制 ---- */
   let gridRows = 8, gridCols = 8;
   const MAX_DIM = 4096; // 超大图片自动缩放到最长边 4096px，保证可逆仍像素级一致
-  const MEM_KEY = 'igp-last'; // localStorage 记忆键
 
   const $ = (id) => document.getElementById(id);
   const state = {
@@ -312,6 +310,9 @@ function parseSeedStr(s) {
     current: null,      // { canvas } 当前工作图（每次处理更新）
     activeSeed: null,   // { rows, cols, key } 最近一次处理使用的种子
   };
+
+  // 本页面不保存任何使用记录；清理旧版本可能遗留的本地记忆（一次性）
+  try { localStorage.removeItem('igp-last'); } catch (e) {}
 
   /* ---- 工具 ---- */
   function status(msg, kind) {
@@ -347,23 +348,6 @@ function parseSeedStr(s) {
     const db = b.getContext('2d').getImageData(0, 0, w, h).data;
     for (let i = 0; i < da.length; i++) if (da[i] !== db[i]) return false;
     return true;
-  }
-  function remember(seedStr) {
-    try { localStorage.setItem(MEM_KEY, seedStr || ''); } catch (e) {}
-  }
-  function loadMemory() {
-    try {
-      const s = localStorage.getItem(MEM_KEY);
-      if (s) {
-        const parsed = parseSeedStr(s);
-        if (parsed && parsed.format === 'full') {
-          $('seed').value = s;
-          $('inRows').value = parsed.rows; $('inCols').value = parsed.cols;
-          gridRows = parsed.rows; gridCols = parsed.cols;
-          $('memHint').textContent = '已载入上次使用的种子（含行列，已同步网格）。可修改或点击「清除记忆」。';
-        }
-      }
-    } catch (e) {}
   }
 
   /* ---- 图片加载 ---- */
@@ -459,7 +443,6 @@ function parseSeedStr(s) {
     const seedStr = buildSeedStr(rows, cols, key);
     // 未输入种子时，把本次生成的种子填入种子框（供复制）；输入了种子则保持用户输入值
     if (!$('seed').value.trim()) $('seed').value = seedStr;
-    remember(seedStr);
     showCanvas('pvCurrent', out, '');
 
     const same = state.original ? pixelsMatch(out, state.original.canvas) : null;
@@ -586,13 +569,6 @@ function parseSeedStr(s) {
       });
     } else { $('seed').select(); document.execCommand('copy'); done(); }
   });
-  $('btnClearMem').addEventListener('click', function () {
-    try { localStorage.removeItem(MEM_KEY); } catch (e) {}
-    $('seed').value = '';
-    $('memHint').textContent = '';
-    status('已清除本浏览器记忆的种子。', 'ok');
-  });
-  loadMemory(); // 启动时恢复上次使用的种子（本浏览器记忆，种子含行列）
 
   /* ---- 下载当前结果 ---- */
   $('btnDl').addEventListener('click', function () {
