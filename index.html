@@ -101,12 +101,9 @@
       repeating-conic-gradient(#f1f2f7 0% 25%, #fff 0% 50%) 0 0 / 22px 22px;
   }
   .holder canvas{max-width:100%; max-height:420px; border-radius:6px; display:block}
-  footer{
-    max-width:1120px; margin:6px auto 26px; padding:0 16px;
-    font-size:12.5px; color:var(--muted);
-  }
-  footer .note{
-    background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; line-height:1.7;
+  .principle{
+    margin-top:16px; background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; line-height:1.7; font-size:12.5px; color:var(--muted);
   }
 </style>
 </head>
@@ -136,13 +133,7 @@
     </div>
     <div class="hint">行列数存于变量 gridRows / gridCols（默认 8×8）。<strong>未输入种子时按此行列值处理</strong>；输入种子时以种子内的行列为主。</div>
 
-    <h2><span class="step-num">3</span>处理</h2>
-    <div class="actions">
-      <button class="btn-primary" id="btnProcess">⚙️ 处理</button>
-    </div>
-    <div class="hint">同一图片用<strong>相同种子</strong>处理两次即回到原图（打乱 ↔ 还原）。未输入种子时：首次按当前行列生成随机种子；网格未变时再次点击沿用上次种子（即可逆）。</div>
-
-    <h2><span class="step-num">4</span>种子（可选）</h2>
+    <h2><span class="step-num">3</span>种子（可选）</h2>
     <div class="hint" style="margin-top:-4px">种子格式「行x列-密钥」（如 8x8-1234567890），<strong>已包含分割行列</strong>。填入种子时按种子处理（优先于网格输入）；留空时页面按行列自动生成随机种子，并填入此框供复制。</div>
     <div class="seed-row">
       <input id="seed" placeholder="种子（可粘贴；处理后会填入本次使用的种子）" spellcheck="false" autocomplete="off">
@@ -150,6 +141,12 @@
       <button class="btn-plain" id="btnClearMem" title="清除本浏览器记住的种子">清除记忆</button>
     </div>
     <div class="hint" id="memHint"></div>
+
+    <h2><span class="step-num">4</span>处理</h2>
+    <div class="actions">
+      <button class="btn-primary" id="btnProcess">⚙️ 处理</button>
+    </div>
+    <div class="hint">同一图片用<strong>相同种子</strong>处理两次即回到原图（打乱 ↔ 还原）。未输入种子时：首次按当前行列生成随机种子；网格未变时再次点击沿用上次种子（即可逆）。</div>
 
     <h2><span class="step-num">5</span>下载</h2>
     <div class="actions">
@@ -173,16 +170,14 @@
         <div class="holder" id="pvCurrent"><span>上传图片后点击「处理」</span></div>
       </figure>
     </div>
+
+    <div class="principle">
+      <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按种子里的密钥生成<strong>自逆置换</strong>并打乱小格。<strong>处理是自逆运算：负片取反两次即复原、自逆置换作用两次即还原，因此用同一种子处理两次必然回到原图</strong>。
+      未输入种子时：按当前行列自动生成随机种子处理，种子会自动填入种子框（可复制保存）；网格不变时再次点击「处理」会沿用该种子，从而可逆。输入种子时：按种子（含行列）处理，种子优先于网格输入，处理后种子框保持为你输入的值。
+      <br>注意：请使用 PNG 等<strong>无损格式</strong>保存，保证像素一致。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
+    </div>
   </section>
 </main>
-
-<footer>
-  <div class="note">
-    <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按种子里的密钥生成<strong>自逆置换</strong>并打乱小格。<strong>处理是自逆运算：负片取反两次即复原、自逆置换作用两次即还原，因此用同一种子处理两次必然回到原图</strong>。
-    未输入种子时：按当前行列自动生成随机种子处理，种子会自动填入种子框（可复制保存）；网格不变时再次点击「处理」会沿用该种子，从而可逆。输入种子时：按种子（含行列）处理，种子优先于网格输入，处理后种子框保持为你输入的值。
-    <br>注意：请使用 PNG 等<strong>无损格式</strong>保存，保证像素一致。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
-  </div>
-</footer>
 
 <script>
 /* ================= 核心纯函数（可测试） ================= */
