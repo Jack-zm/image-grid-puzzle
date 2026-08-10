@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图片网格打乱加密 · 一键还原</title>
+<style>
+  :root{
+    --bg:#f5f6fa; --card:#ffffff; --line:#e4e7f0;
+    --ink:#1f2430; --muted:#6b7280;
+    --accent:#4f46e5; --accent-weak:#eef0ff; --accent-ink:#4338ca;
+    --ok:#059669; --ok-weak:#e6f7f0;
+    --warn:#b45309; --warn-weak:#fdf3e3;
+    --err:#dc2626; --err-weak:#fdecec;
+    --radius:14px; --shadow:0 1px 2px rgba(31,36,48,.06),0 6px 18px rgba(31,36,48,.06);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;
+  }
+  header{
+    background:linear-gradient(120deg,#4f46e5 0%,#7c3aed 100%);
+    color:#fff; padding:26px 20px 22px; text-align:center;
+  }
+  header h1{margin:0 0 6px; font-size:24px; letter-spacing:.5px}
+  header p{margin:0 auto; max-width:760px; font-size:14px; opacity:.92}
+  main{
+    max-width:1240px; margin:22px auto 10px; padding:0 16px;
+    display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;
+  }
+  .panel{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:18px;
+  }
+  .panel h2{
+    font-size:15px; margin:18px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .panel h2:first-child{margin-top:0}
+  .step-num{
+    display:inline-flex; width:22px; height:22px; border-radius:50%;
+    background:var(--accent); color:#fff; font-size:12px; align-items:center; justify-content:center; flex:none;
+  }
+  .dropzone{
+    border:2px dashed #c7cbe0; border-radius:12px; padding:16px 12px;
+    text-align:center; color:var(--muted); font-size:13px; cursor:pointer;
+    transition:border-color .15s, background .15s; background:#fafbff; position:relative;
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent); background:var(--accent-weak)}
+  .dropzone .dz-icon{font-size:22px; display:block; margin-bottom:4px}
+  .dropzone .dz-file{font-weight:600; color:var(--ink); font-size:12.5px; word-break:break-all}
+  .dz + .dz{margin-top:10px}
+  .grid-inputs{display:flex; gap:10px; align-items:center}
+  .grid-inputs label{font-size:13px; color:var(--muted); flex:none}
+  .grid-inputs input{
+    width:64px; padding:7px 8px; border:1px solid var(--line); border-radius:8px;
+    font-size:14px; text-align:center; outline:none; color:var(--ink); background:#fff;
+  }
+  .grid-inputs input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-weak)}
+  .actions{display:flex; gap:10px; flex-wrap:wrap}
+  button{
+    border:none; border-radius:9px; padding:10px 14px; font-size:14px; font-weight:600;
+    cursor:pointer; transition:transform .05s, filter .15s, box-shadow .15s; font-family:inherit;
+  }
+  button:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent); color:#fff; flex:1}
+  .btn-primary:hover{filter:brightness(1.07); box-shadow:0 4px 14px rgba(79,70,229,.35)}
+  .btn-ghost{background:var(--accent-weak); color:var(--accent-ink)}
+  .btn-ghost:hover{filter:brightness(.97)}
+  .btn-plain{background:#f1f2f7; color:var(--ink)}
+  .btn-plain:hover{filter:brightness(.96)}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .secret{margin-top:12px}
+  .seed-row{display:flex; gap:6px; margin-top:6px}
+  .seed-row input{
+    flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    font-size:13px; font-family:ui-monospace,Consolas,monospace; color:var(--ink); outline:none; background:#fafbff;
+  }
+  .seed-row input:focus{border-color:var(--accent)}
+  .seed-row button{flex:none; padding:8px 10px; font-size:12.5px}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px}
+  #status{
+    margin-top:14px; padding:10px 12px; border-radius:10px; font-size:13px; display:none;
+  }
+  #status.ok{display:block; background:var(--ok-weak); color:var(--ok); border:1px solid #bfe8d6}
+  #status.warn{display:block; background:var(--warn-weak); color:var(--warn); border:1px solid #f0d9ae}
+  #status.err{display:block; background:var(--err-weak); color:var(--err); border:1px solid #f3c1c1}
+  .previews h2{margin-top:0}
+  .preview-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  @media(max-width:900px){ .preview-grid{grid-template-columns:1fr} main{grid-template-columns:1fr} }
+  figure{margin:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fafbff}
+  figcaption{
+    font-size:12.5px; font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:6px; background:#fff;
+  }
+  figcaption .tag{
+    font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; flex:none;
+  }
+  .tag.pending{background:#f1f2f7; color:var(--muted)}
+  .tag.ready{background:var(--accent-weak); color:var(--accent-ink)}
+  .tag.done{background:var(--ok-weak); color:var(--ok)}
+  .holder{
+    min-height:180px; display:flex; align-items:center; justify-content:center;
+    padding:10px; color:var(--muted); font-size:13px; background:
+      repeating-conic-gradient(#f1f2f7 0% 25%, #fff 0% 50%) 0 0 / 22px 22px;
+  }
+  .holder canvas{max-width:100%; max-height:420px; border-radius:6px; display:block}
+  .mapping{margin-top:16px}
+  .mapping h3{font-size:13px; margin:0 0 8px; color:var(--muted); font-weight:600}
+  #mapGrid{display:flex; flex-wrap:wrap; gap:2px; max-height:220px; overflow:auto}
+  #mapGrid .cell{
+    display:flex; align-items:center; justify-content:center;
+    background:var(--accent-weak); color:var(--accent-ink);
+    border-radius:4px; font-family:ui-monospace,Consolas,monospace; font-weight:600;
+  }
+  .map-empty{font-size:12.5px; color:var(--muted)}
+  footer{
+    max-width:1240px; margin:6px auto 26px; padding:0 16px;
+    font-size:12.5px; color:var(--muted);
+  }
+  footer .note{
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 14px; line-height:1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🖼️ 图片网格打乱加密 / 一键还原</h1>
+  <p>上传图片 → 切成 N×N 网格 → 负片取反 → 随机打乱。同一页面（或重新上传处理结果）点击还原，即可恢复原始图片。</p>
+</header>
+
+<main>
+  <!-- 左侧：控制区 -->
+  <section class="panel">
+    <h2><span class="step-num">1</span>上传图片</h2>
+    <div class="dropzone" id="dzOriginal">
+      <span class="dz-icon">🖼️</span>
+      <span>上传<strong>原始图片</strong>（点击或拖拽）</span>
+      <div class="dz-file" id="dzOriginalFile" style="margin-top:4px"></div>
+    </div>
+    <div class="dropzone" id="dzProcessed">
+      <span class="dz-icon">🔁</span>
+      <span>上传<strong>处理后的图片</strong>（用于还原）</span>
+      <div class="dz-file" id="dzProcessedFile" style="margin-top:4px"></div>
+    </div>
+    <input type="file" id="fileOriginal" accept="image/*" hidden>
+    <input type="file" id="fileProcessed" accept="image/*" hidden>
+
+    <h2><span class="step-num">2</span>网格设置</h2>
+    <div class="grid-inputs">
+      <label>行</label><input type="number" id="inRows" min="1" max="64" value="8">
+      <label>列</label><input type="number" id="inCols" min="1" max="64" value="8">
+    </div>
+    <div class="hint">行列数存于 JS 变量 gridRows / gridCols，可自由修改（默认 8×8）。</div>
+
+    <h2><span class="step-num">3</span>操作</h2>
+    <div class="actions">
+      <button class="btn-primary" id="btnShuffle">🔀 加密并打乱</button>
+      <button class="btn-ghost" id="btnRestore" style="flex:1">🔄 还原原图</button>
+    </div>
+
+    <div class="secret">
+      <h2><span class="step-num">4</span>打乱参数（种子）</h2>
+      <div class="hint" style="margin-top:-4px">负片取反是<strong>自逆运算</strong>（取反两次即复原）；打乱顺序由种子决定，还原时按逆置换排回。保存种子即可在其它会话中还原。</div>
+      <div class="seed-row">
+        <input id="seedOut" readonly placeholder="加密后自动生成" title="本次打乱使用的种子">
+        <button class="btn-plain" id="btnCopySeed">复制</button>
+      </div>
+      <div class="seed-row">
+        <input id="seedIn" placeholder="粘贴种子（跨会话还原）">
+        <button class="btn-plain" id="btnLoadSeed">载入种子</button>
+      </div>
+    </div>
+
+    <h2><span class="step-num">5</span>下载</h2>
+    <div class="actions">
+      <button class="btn-primary" id="btnDlProc" style="flex:1">⬇️ 下载处理结果</button>
+      <button class="btn-ghost" id="btnDlRest" style="flex:1">⬇️ 下载还原结果</button>
+    </div>
+    <div class="hint">请以 PNG 无损格式导出/导入，保证像素一致、可完美还原。</div>
+
+    <div id="status"></div>
+  </section>
+
+  <!-- 右侧：预览区 -->
+  <section class="panel previews">
+    <h2>预览</h2>
+    <div class="preview-grid">
+      <figure>
+        <figcaption>原图<span class="tag pending" id="tagOriginal">待上传</span></figcaption>
+        <div class="holder" id="pvOriginal"><span>尚未上传图片</span></div>
+      </figure>
+      <figure>
+        <figcaption>处理结果（负片 + 打乱）<span class="tag pending" id="tagProcessed">未处理</span></figcaption>
+        <div class="holder" id="pvProcessed"><span>点击「加密并打乱」生成</span></div>
+      </figure>
+      <figure>
+        <figcaption>还原结果<span class="tag pending" id="tagRestored">未还原</span></figcaption>
+        <div class="holder" id="pvRestored"><span>点击「还原原图」恢复</span></div>
+      </figure>
+    </div>
+
+    <div class="mapping">
+      <h3>打乱映射（每格数字 = 该位置取自原图的第几格，从左到右、从上到下从 0 编号）</h3>
+      <div id="mapGrid"><span class="map-empty">完成加密后在此显示打乱顺序</span></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="note">
+    <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按随机种子生成的置换顺序打乱小格。
+    还原时：把当前图片重新切格 → 按<strong>逆置换</strong>把小格放回原位 → 再取反一次（抵消负片），即得原图。同一页面直接还原，或下载 PNG 后重新上传到「处理后的图片」入口还原；跨会话还原需粘贴种子。
+    <br>注意：还原必须使用与加密时相同的网格行列与种子；请使用 PNG 等无损格式。
+  </div>
+</footer>
+
+<script>
+/* ================= 核心纯函数（可测试） ================= */
+/*__CORE_START__*/
+/* 生成 [0, n) 的伪随机置换，种子 seed 为 32 位无符号整数 */
+function shuffledPermutation(n, seed) {
+  const rng = mulberry32(seed >>> 0);
+  const arr = new Array(n);
+  for (let i = 0; i < n; i++) arr[i] = i;
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+/* mulberry32：小巧可复现的 PRNG */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* 置换的逆置换：inv[perm[i]] = i */
+function invertPermutation(perm) {
+  const inv = new Array(perm.length);
+  for (let i = 0; i < perm.length; i++) inv[perm[i]] = i;
+  return inv;
+}
+
+/*
+ * 将 src 按 rows×cols 网格切块（每块 floor(w/cols) × floor(h/rows)），
+ * 按 map 指定的顺序搬运到 dst 对应位置，并做负片取反（255 - RGB，Alpha 不变）。
+ *  - 加密：map = perm（dst 第 i 格取 src 第 perm[i] 格）
+ *  - 还原：map = invertPermutation(perm)（抵消打乱），取反再抵消负片
+ * src/dst 为 { width, height, data: Uint8ClampedArray } 结构。
+ */
+function applyTransform(dst, src, rows, cols, map) {
+  const tileW = Math.floor(src.width / cols);
+  const tileH = Math.floor(src.height / rows);
+  if (tileW < 1 || tileH < 1) throw new Error('网格行列不能超过图片像素数');
+  const sw = src.width, dw = dst.width;
+  const sData = src.data, dData = dst.data;
+  const total = rows * cols;
+  for (let i = 0; i < total; i++) {
+    const st = map[i];
+    const sr = Math.floor(st / cols), sc = st % cols;
+    const dr = Math.floor(i / cols), dc = i % cols;
+    const sx = sc * tileW, sy = sr * tileH;
+    const dx = dc * tileW, dy = dr * tileH;
+    for (let y = 0; y < tileH; y++) {
+      let si = ((sy + y) * sw + sx) * 4;
+      let di = ((dy + y) * dw + dx) * 4;
+      for (let x = 0; x < tileW; x++, si += 4, di += 4) {
+        dData[di]     = 255 - sData[si];
+        dData[di + 1] = 255 - sData[si + 1];
+        dData[di + 2] = 255 - sData[si + 2];
+        dData[di + 3] = sData[si + 3];
+      }
+    }
+  }
+}
+/*__CORE_END__*/
+/* ================= 核心纯函数结束 ================= */
+
+(function () {
+  'use strict';
+
+  /* ---- 网格行列：以变量形式存储，默认 8×8，由输入框控制 ---- */
+  let gridRows = 8, gridCols = 8;
+  const MAX_DIM = 4096; // 超大图片自动缩放到最长边 4096px，保证还原仍像素级一致
+
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    original: null,   // { canvas, name, size }
+    processed: null,  // { canvas }
+    restored: null,   // { canvas }
+    procInput: null,  // 重新上传的处理后图片 { canvas, name, size }
+    perm: null,
+    seed: null,
+  };
+
+  /* ---- 工具 ---- */
+  function status(msg, kind) {
+    const el = $('status');
+    el.textContent = msg;
+    el.className = kind || 'ok';
+  }
+  function clearStatus() { $('status').className = ''; $('status').textContent = ''; }
+
+  function showCanvas(holderId, canvas, fallbackHtml) {
+    const holder = $(holderId);
+    holder.innerHTML = '';
+    if (!canvas) { holder.innerHTML = fallbackHtml || '<span>—</span>'; return; }
+    holder.appendChild(canvas);
+  }
+  function setTag(id, text, cls) {
+    const t = $(id);
+    t.textContent = text;
+    t.className = 'tag ' + (cls || 'pending');
+  }
+  function fmtSize(b) {
+    if (b == null) return '';
+    return b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' KB';
+  }
+  function getGrid() {
+    const r = parseInt($('inRows').value, 10);
+    const c = parseInt($('inCols').value, 10);
+    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 1 || c < 1 || r > 64 || c > 64) return null;
+    gridRows = r; gridCols = c;
+    return { rows: r, cols: c };
+  }
+  function parseSeed(s) {
+    const n = Number(String(s || '').trim());
+    if (!Number.isInteger(n) || n < 0 || n > 0xFFFFFFFF) return null;
+    return n >>> 0;
+  }
+
+  /* ---- 图片加载 ---- */
+  function loadImage(file, maxDim) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () {
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const scale = Math.min(1, maxDim / Math.max(w, h));
+        if (scale < 1) { w = Math.round(w * scale); h = Math.round(h * scale); }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve({ canvas: c, name: file.name, size: file.size });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('图片加载失败，请确认文件格式')); };
+      img.src = url;
+    });
+  }
+
+  function bindUpload(dzId, fileId, onLoaded) {
+    const dz = $(dzId), input = $(fileId);
+    dz.addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function () { if (input.files[0]) onLoaded(input.files[0]); input.value = ''; });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('drag'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('drag'); });
+    });
+    dz.addEventListener('drop', function (e) {
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) onLoaded(f);
+    });
+  }
+
+  /* ---- 加密（负片 + 打乱） ---- */
+  $('btnShuffle').addEventListener('click', function () {
+    if (!state.original) { status('请先上传原始图片', 'warn'); return; }
+    const g = getGrid();
+    if (!g) { status('网格行列需为 1~64 的整数', 'warn'); return; }
+    const src = state.original.canvas;
+    if (g.rows > src.height || g.cols > src.width) {
+      status('网格行列不能大于图片像素数（当前 ' + src.width + '×' + src.height + '）', 'err');
+      return;
+    }
+    const seed = (Math.random() * 0xFFFFFFFF) >>> 0;
+    const perm = shuffledPermutation(g.rows * g.cols, seed);
+    const tileW = Math.floor(src.width / g.cols), tileH = Math.floor(src.height / g.rows);
+    const w = tileW * g.cols, h = tileH * g.rows;
+    const srcData = src.getContext('2d').getImageData(0, 0, w, h);
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const outData = out.getContext('2d').createImageData(w, h);
+    try {
+      applyTransform(outData, srcData, g.rows, g.cols, perm);
+    } catch (e) { status(e.message, 'err'); return; }
+    out.getContext('2d').putImageData(outData, 0, 0);
+
+    state.processed = { canvas: out };
+    state.perm = perm; state.seed = seed;
+    state.restored = null; state.procInput = null;
+    $('dzProcessedFile').textContent = '';
+    $('seedOut').value = String(seed);
+    setTag('tagProcessed', '已生成', 'ready');
+    setTag('tagRestored', '未还原', 'pending');
+    showCanvas('pvProcessed', out, '');
+    renderMap(perm, g.rows, g.cols);
+    status('✅ 加密完成：已负片取反并按 ' + g.rows + '×' + g.cols + ' 网格打乱，种子 = ' + seed +
+      '。可点击「还原原图」直接还原，或下载 PNG 后通过下方入口重新上传再还原。', 'ok');
+  });
+
+  /* ---- 还原（逆置换 + 再次取反） ---- */
+  $('btnRestore').addEventListener('click', function () {
+    const g = getGrid();
+    if (!g) { status('网格行列需为 1~64 的整数', 'warn'); return; }
+    const srcCanvas = state.procInput ? state.procInput.canvas : (state.processed ? state.processed.canvas : null);
+    if (!srcCanvas) {
+      status('请先在本页加密，或上传「处理后的图片」再还原', 'warn');
+      return;
+    }
+    // 打乱参数：优先用内存中的 perm；若尺寸不符（用户改了网格），尝试用种子重建
+    let perm = state.perm;
+    if (perm && perm.length !== g.rows * g.cols && state.seed !== null) {
+      perm = shuffledPermutation(g.rows * g.cols, state.seed);
+    }
+    if (!perm) {
+      const s = parseSeed($('seedIn').value);
+      if (s === null) {
+        status('缺少打乱参数：请在本页先加密，或在「载入种子」处粘贴本次加密的种子', 'warn');
+        return;
+      }
+      perm = shuffledPermutation(g.rows * g.cols, s);
+      state.perm = perm; state.seed = s;
+      $('seedOut').value = String(s);
+    }
+    // 网格对齐检查
+    const tileW = Math.floor(srcCanvas.width / g.cols), tileH = Math.floor(srcCanvas.height / g.rows);
+    if (tileW * g.cols !== srcCanvas.width || tileH * g.rows !== srcCanvas.height) {
+      status('⚠️ 图片尺寸与当前网格不完全对齐，请确认网格行列与加密时一致，否则结果会异常', 'warn');
+    }
+    const srcData = srcCanvas.getContext('2d').getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    const inverse = invertPermutation(perm);
+    const out = document.createElement('canvas');
+    out.width = srcCanvas.width; out.height = srcCanvas.height;
+    const outData = out.getContext('2d').createImageData(srcCanvas.width, srcCanvas.height);
+    try {
+      applyTransform(outData, srcData, g.rows, g.cols, inverse);
+    } catch (e) { status(e.message, 'err'); return; }
+    out.getContext('2d').putImageData(outData, 0, 0);
+
+    state.restored = { canvas: out };
+    setTag('tagRestored', '已还原', 'done');
+    showCanvas('pvRestored', out, '');
+    const sourceName = state.procInput ? '重新上传的图片' : '页面中的处理结果';
+    const same = state.original ? pixelsMatch(out, state.original.canvas) : null;
+    if (same === true) {
+      status('✅ 还原完成（来源：' + sourceName + '），与加密前图像像素完全一致 ✓', 'ok');
+    } else if (same === false) {
+      status('⚠️ 还原完成，但与原图像素不完全一致——请确认网格行列、种子、图片是否与加密时相同', 'warn');
+    } else {
+      status('✅ 还原完成（来源：' + sourceName + '）。提示：本会话未保留原图，如需校验像素一致性请重新上传原始图片。', 'ok');
+    }
+  });
+
+  function pixelsMatch(a, b) {
+    const w = Math.min(a.width, b.width), h = Math.min(a.height, b.height);
+    const da = a.getContext('2d').getImageData(0, 0, w, h).data;
+    const db = b.getContext('2d').getImageData(0, 0, w, h).data;
+    for (let i = 0; i < da.length; i++) if (da[i] !== db[i]) return false;
+    return true;
+  }
+
+  /* ---- 打乱映射可视化 ---- */
+  function renderMap(perm, rows, cols) {
+    const box = $('mapGrid');
+    box.innerHTML = '';
+    const total = rows * cols;
+    if (total > 30 * 30) {
+      box.innerHTML = '<span class="map-empty">网格过大（' + total + ' 格），映射见种子：' + JSON.stringify(perm) + '</span>';
+      return;
+    }
+    const size = total <= 100 ? 30 : (total <= 400 ? 22 : 14);
+    perm.forEach(function (v) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.width = size + 'px';
+      cell.style.height = size + 'px';
+      cell.style.fontSize = (size <= 14 ? 9 : 11) + 'px';
+      cell.textContent = v;
+      cell.title = '位置来自原图第 ' + v + ' 格';
+      box.appendChild(cell);
+    });
+  }
+
+  /* ---- 上传入口 ---- */
+  bindUpload('dzOriginal', 'fileOriginal', function (file) {
+    loadImage(file, MAX_DIM).then(function (obj) {
+      state.original = obj;
+      state.processed = null; state.restored = null; state.procInput = null;
+      state.perm = null; state.seed = null;
+      $('seedOut').value = ''; $('seedIn').value = ''; $('dzProcessedFile').textContent = '';
+      setTag('tagOriginal', '已就绪', 'ready');
+      setTag('tagProcessed', '未处理', 'pending');
+      setTag('tagRestored', '未还原', 'pending');
+      showCanvas('pvOriginal', obj.canvas, '');
+      $('dzOriginalFile').textContent = obj.name + ' · ' + fmtSize(obj.size) +
+        (obj.canvas.width !== 0 ? '' : '');
+      $('mapGrid').innerHTML = '<span class="map-empty">完成加密后在此显示打乱顺序</span>';
+      showCanvas('pvProcessed', null, '<span>点击「加密并打乱」生成</span>');
+      showCanvas('pvRestored', null, '<span>点击「还原原图」恢复</span>');
+      status('原始图片已载入：' + obj.name + '（' + obj.canvas.width + '×' + obj.canvas.height + '）。可调整网格后点击「加密并打乱」。', 'ok');
+    }).catch(function (e) { status(e.message, 'err'); });
+  });
+
+  bindUpload('dzProcessed', 'fileProcessed', function (file) {
+    loadImage(file, MAX_DIM).then(function (obj) {
+      state.procInput = obj;
+      state.restored = null;
+      setTag('tagProcessed', '已重新上传', 'ready');
+      setTag('tagRestored', '未还原', 'pending');
+      showCanvas('pvProcessed', obj.canvas, '');
+      showCanvas('pvRestored', null, '<span>点击「还原原图」恢复</span>');
+      $('dzProcessedFile').textContent = obj.name + ' · ' + fmtSize(obj.size) + '（' + obj.canvas.width + '×' + obj.canvas.height + '）';
+      status('处理后的图片已载入（' + obj.canvas.width + '×' + obj.canvas.height + '）。若本页已有打乱参数将直接还原；否则请在「载入种子」处粘贴原种子。', 'ok');
+    }).catch(function (e) { status(e.message, 'err'); });
+  });
+
+  /* ---- 种子操作 ---- */
+  $('btnCopySeed').addEventListener('click', function () {
+    const v = $('seedOut').value;
+    if (!v) { status('尚无种子可复制，请先执行加密', 'warn'); return; }
+    const done = function () { status('种子已复制：' + v, 'ok'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(v).then(done, function () {
+        $('seedOut').select(); document.execCommand('copy'); done();
+      });
+    } else { $('seedOut').select(); document.execCommand('copy'); done(); }
+  });
+
+  $('btnLoadSeed').addEventListener('click', function () {
+    const s = parseSeed($('seedIn').value);
+    if (s === null) { status('种子格式无效：应为 0~4294967295 的整数', 'warn'); return; }
+    const g = getGrid();
+    if (!g) { status('网格行列需为 1~64 的整数', 'warn'); return; }
+    state.seed = s;
+    state.perm = shuffledPermutation(g.rows * g.cols, s);
+    $('seedOut').value = String(s);
+    renderMap(state.perm, g.rows, g.cols);
+    status('种子已载入，已按当前 ' + g.rows + '×' + g.cols + ' 网格重建打乱映射。上传「处理后的图片」后点击「还原原图」即可。', 'ok');
+  });
+
+  /* ---- 下载 ---- */
+  function downloadCanvas(canvas, filename) {
+    canvas.toBlob(function (blob) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }, 'image/png');
+  }
+  $('btnDlProc').addEventListener('click', function () {
+    const c = (state.procInput ? state.procInput.canvas : (state.processed ? state.processed.canvas : null));
+    if (!c) { status('尚无处理结果可下载', 'warn'); return; }
+    downloadCanvas(c, 'shuffled_' + gridRows + 'x' + gridCols + '_seed' + (state.seed != null ? state.seed : '') + '.png');
+  });
+  $('btnDlRest').addEventListener('click', function () {
+    if (!state.restored) { status('尚无还原结果可下载', 'warn'); return; }
+    downloadCanvas(state.restored.canvas, 'restored.png');
+  });
+})();
+</script>
+</body>
+</html>
