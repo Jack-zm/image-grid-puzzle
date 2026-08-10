@@ -146,5 +146,41 @@ fails += pwdRoundtrip(33, 21, 5, 5, '中文密码🎯', '中文/符号密码');
 fails += seedPasteRoundtrip(80, 50, 8, 8, '123456', '粘贴种子还原（默认密码）');
 fails += seedPasteRoundtrip(80, 50, 8, 8, 'custom-key', '粘贴种子还原（自定义密码）');
 
+/* ---- 种子包含分割行列（新需求：仅凭种子即可还原，无需输入行列） ---- */
+const s1 = ctx.buildSeedStr(8, 8, 12345);
+if (s1 !== '8x8-12345') { console.error('  ✗ buildSeedStr 格式错误: ' + s1); fails++; }
+else console.log('  ✓ buildSeedStr 生成「行x列-密钥」格式');
+const pFull = ctx.parseSeedStr('8x8-12345');
+if (!pFull || pFull.format !== 'full' || pFull.rows !== 8 || pFull.cols !== 8 || pFull.key !== 12345) { console.error('  ✗ parseSeedStr 完整格式解析错误'); fails++; }
+else console.log('  ✓ parseSeedStr 解析完整种子（含行列）');
+const pLegacy = ctx.parseSeedStr('12345');
+if (!pLegacy || pLegacy.format !== 'legacy' || pLegacy.key !== 12345) { console.error('  ✗ parseSeedStr 旧版数字种子解析错误'); fails++; }
+else console.log('  ✓ parseSeedStr 兼容旧版纯数字种子');
+if (ctx.parseSeedStr('abc') !== null || ctx.parseSeedStr('8x8-') !== null || ctx.parseSeedStr('8x') !== null) { console.error('  ✗ parseSeedStr 未拒绝非法输入'); fails++; }
+else console.log('  ✓ parseSeedStr 拒绝非法输入');
+const pMax = ctx.parseSeedStr('64x64-4294967295');
+if (!pMax || pMax.rows !== 64 || pMax.cols !== 64 || pMax.key !== 4294967295) { console.error('  ✗ parseSeedStr 边界值解析错误'); fails++; }
+else console.log('  ✓ parseSeedStr 边界值 64x64 / 最大密钥');
+
+/* 仅凭种子还原：不知道网格，只给种子也能还原 */
+function seedOnlyRoundtrip(w, h, rows, cols, key, label) {
+  const src = makeImage(w, h, 0xABCDEF ^ (w * 131 + h));
+  const seedStr = ctx.buildSeedStr(rows, cols, key);
+  const proc = transform(src, rows, cols, shuffledPermutation(rows * cols, key));
+  // 还原：仅解析种子（模拟"只填种子、不输入行列"）
+  const parsed = ctx.parseSeedStr(seedStr);
+  if (!parsed || parsed.format !== 'full') { console.error(`  ✗ ${label}: 种子解析失败`); return 1; }
+  const rest = transform(proc, parsed.rows, parsed.cols, invertPermutation(shuffledPermutation(parsed.rows * parsed.cols, parsed.key)));
+  const tileW = Math.floor(w / parsed.cols), tileH = Math.floor(h / parsed.rows);
+  const expect = crop(src, tileW * parsed.cols, tileH * parsed.rows);
+  if (!equal(rest, expect)) { console.error(`  ✗ ${label}: 仅凭种子还原失败`); return 1; }
+  console.log(`  ✓ ${label} (${w}×${h}, 种子 ${seedStr})`);
+  return 0;
+}
+fails += seedOnlyRoundtrip(64, 48, 8, 8, ctx.hash32('123456'), '仅凭种子还原 8x8');
+fails += seedOnlyRoundtrip(100, 60, 8, 8, ctx.hash32('custom-pwd'), '仅凭种子还原 8x8(自定义密码)');
+fails += seedOnlyRoundtrip(33, 21, 5, 5, ctx.hash32('中文密码🎯'), '仅凭种子还原 5x5(中文密码)');
+fails += seedOnlyRoundtrip(40, 40, 10, 16, ctx.hash32('x'), '仅凭种子还原 10x16');
+
 console.log(fails === 0 ? '\n全部测试通过 ✅' : `\n存在 ${fails} 处失败 ❌`);
 process.exit(fails === 0 ? 0 : 1);
