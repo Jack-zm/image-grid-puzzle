@@ -101,6 +101,24 @@
       repeating-conic-gradient(#f1f2f7 0% 25%, #fff 0% 50%) 0 0 / 22px 22px;
   }
   .holder canvas{max-width:100%; max-height:420px; border-radius:6px; display:block}
+  /* 悬浮预览浮层 */
+  .modal{position:fixed; top:0; left:0; right:0; bottom:0; z-index:1000; display:flex; align-items:center; justify-content:center}
+  .modal[hidden]{display:none}
+  .modal-backdrop{position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(20,24,40,.62)}
+  .modal-box{
+    position:relative; z-index:1; background:#fff; border-radius:14px; overflow:hidden;
+    max-width:min(92vw,1100px); max-height:92vh; display:flex; flex-direction:column;
+    box-shadow:0 24px 64px rgba(0,0,0,.35);
+  }
+  .modal-head{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:12px 16px; border-bottom:1px solid var(--line); font-weight:600; background:#fff;
+  }
+  .modal-head button{flex:none; padding:6px 14px; font-size:13px}
+  .modal-body{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto}
+  .modal-body img{max-width:100%; max-height:70vh; border-radius:8px; display:block}
+  .modal-foot{display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--line)}
+  .modal-foot button{flex:none; padding:9px 20px}
   .principle{
     margin-top:16px; background:#fff; border:1px solid var(--line); border-radius:10px;
     padding:12px 14px; line-height:1.7; font-size:12.5px; color:var(--muted);
@@ -172,6 +190,7 @@
       <figure>
         <figcaption>当前结果<span class="tag pending" id="tagCurrent">—</span></figcaption>
         <div class="holder" id="pvCurrent"><span>上传图片后点击「处理」</span></div>
+        <button class="btn-ghost" id="btnPreview" style="width:100%; margin-top:10px">🔍 悬浮预览</button>
       </figure>
     </div>
 
@@ -182,6 +201,21 @@
     </div>
   </section>
 </main>
+
+<!-- 悬浮预览浮层：查看当前结果，可关闭或直接下载 -->
+<div class="modal" id="previewModal" hidden>
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="modal-box">
+    <div class="modal-head">
+      <span>🖼️ 处理结果预览</span>
+      <button class="btn-plain" id="btnModalClose" title="关闭预览">✕ 关闭</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot">
+      <button class="btn-primary" id="btnModalDownload">⬇️ 下载结果</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ================= 核心纯函数（可测试） ================= */
@@ -571,9 +605,8 @@ function parseSeedStr(s) {
   });
 
   /* ---- 下载当前结果 ---- */
-  $('btnDl').addEventListener('click', function () {
+  function downloadCurrent(seedStr) {
     if (!state.current) { status('请先上传图片', 'warn'); return; }
-    const seedStr = $('seed').value.trim() || (gridRows + 'x' + gridCols);
     state.current.canvas.toBlob(function (blob) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -582,6 +615,35 @@ function parseSeedStr(s) {
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
     }, 'image/png');
+  }
+  $('btnDl').addEventListener('click', function () {
+    const seedStr = $('seed').value.trim() || (gridRows + 'x' + gridCols);
+    downloadCurrent(seedStr);
+  });
+
+  /* ---- 悬浮预览当前结果（无需下载到本地，浮层内可关闭或下载） ---- */
+  function openPreview() {
+    if (!state.current) { status('请先上传图片', 'warn'); return; }
+    const body = $('modalBody');
+    body.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = state.current.canvas.toDataURL('image/png');
+    img.alt = '处理结果预览';
+    body.appendChild(img);
+    $('previewModal').hidden = false;
+  }
+  function closePreview() { $('previewModal').hidden = true; }
+  $('btnPreview').addEventListener('click', openPreview);
+  $('btnModalClose').addEventListener('click', closePreview);
+  $('modalBackdrop').addEventListener('click', closePreview);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closePreview();
+  });
+  $('btnModalDownload').addEventListener('click', function () {
+    if (!state.current) { status('尚无结果可下载', 'warn'); return; }
+    const seedStr = $('seed').value.trim() || (gridRows + 'x' + gridCols);
+    downloadCurrent(seedStr);
+    status('已下载处理结果：processed_' + seedStr + '.png', 'ok');
   });
 })();
 </script>
