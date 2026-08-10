@@ -128,7 +128,7 @@
 
 <header>
   <h1>🖼️ 图片网格打乱加密 / 一键还原</h1>
-  <p>上传图片 → 切成 N×N 网格 → 负片取反 → 随机打乱。同一页面（或重新上传处理结果）点击还原，即可恢复原始图片。</p>
+  <p>上传图片 → 切成 N×N 网格 → 负片取反 → 按「密码/种子」打乱。上传处理后的图片（或直接在同一页面）输入相同密码/种子点击还原，即可恢复原始图片。全部功能在浏览器本地完成，无后端、无需联网。</p>
 </header>
 
 <main>
@@ -142,7 +142,7 @@
     </div>
     <div class="dropzone" id="dzProcessed">
       <span class="dz-icon">🔁</span>
-      <span>上传<strong>处理后的图片</strong>（用于还原）</span>
+      <span>上传<strong>处理后的图片</strong>（还原需与加密时相同密码/种子）</span>
       <div class="dz-file" id="dzProcessedFile" style="margin-top:4px"></div>
     </div>
     <input type="file" id="fileOriginal" accept="image/*" hidden>
@@ -162,16 +162,22 @@
     </div>
 
     <div class="secret">
-      <h2><span class="step-num">4</span>打乱参数（种子）</h2>
-      <div class="hint" style="margin-top:-4px">负片取反是<strong>自逆运算</strong>（取反两次即复原）；打乱顺序由种子决定，还原时按逆置换排回。保存种子即可在其它会话中还原。</div>
+      <h2><span class="step-num">4</span>密码 / 种子（还原密钥）</h2>
+      <div class="hint" style="margin-top:-4px">打乱顺序由「密码 → 种子」决定（同密码 = 同打乱），<strong>不输入密码时使用默认密码 123456</strong>；负片取反是自逆运算（取反两次即复原）。还原时需使用相同密码或种子。</div>
       <div class="seed-row">
-        <input id="seedOut" readonly placeholder="加密后自动生成" title="本次打乱使用的种子">
+        <input type="password" id="inPassword" placeholder="密码（留空则用 123456）" autocomplete="off">
+        <button class="btn-plain" id="btnTogglePwd" title="显示/隐藏密码">显示</button>
+        <button class="btn-plain" id="btnRandPwd" title="生成随机密码">🎲</button>
+      </div>
+      <div class="seed-row">
+        <input id="seedOut" readonly placeholder="种子（由密码自动生成）" title="本次打乱使用的种子">
         <button class="btn-plain" id="btnCopySeed">复制</button>
       </div>
       <div class="seed-row">
-        <input id="seedIn" placeholder="粘贴种子（跨会话还原）">
-        <button class="btn-plain" id="btnLoadSeed">载入种子</button>
+        <input id="seedIn" placeholder="填入种子可跨会话还原（优先于密码）">
+        <button class="btn-plain" id="btnClearMem" title="清除本浏览器记住的种子与网格">清除记忆</button>
       </div>
+      <div class="hint" id="memHint"></div>
     </div>
 
     <h2><span class="step-num">5</span>下载</h2>
@@ -211,9 +217,9 @@
 
 <footer>
   <div class="note">
-    <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按随机种子生成的置换顺序打乱小格。
-    还原时：把当前图片重新切格 → 按<strong>逆置换</strong>把小格放回原位 → 再取反一次（抵消负片），即得原图。同一页面直接还原，或下载 PNG 后重新上传到「处理后的图片」入口还原；跨会话还原需粘贴种子。
-    <br>注意：还原必须使用与加密时相同的网格行列与种子；请使用 PNG 等无损格式。
+    <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按「密码 → 种子」生成的置换顺序打乱小格（不输入密码时默认 123456）。
+    还原时：把当前图片重新切格 → 按<strong>逆置换</strong>把小格放回原位 → 再取反一次（抵消负片），即得原图。同一页面直接还原，或下载 PNG 后重新上传到「处理后的图片」入口，输入相同密码或粘贴种子即可还原。
+    <br>注意：还原必须使用与加密时相同的网格行列与密码/种子；请使用 PNG 等无损格式。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
   </div>
 </footer>
 
@@ -281,6 +287,22 @@ function applyTransform(dst, src, rows, cols, map) {
     }
   }
 }
+
+/* 将任意字符串散列为 32 位无符号种子（FNV-1a，逐 UTF-16 码元，跨平台稳定） */
+function hash32(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h ^= c & 0xff; h = Math.imul(h, 0x01000193) >>> 0;
+    h ^= (c >>> 8) & 0xff; h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/* 密码默认值：不输入时使用 123456 */
+function defaultPassword(pwd) {
+  return pwd ? pwd : '123456';
+}
 /*__CORE_END__*/
 /* ================= 核心纯函数结束 ================= */
 
@@ -300,6 +322,38 @@ function applyTransform(dst, src, rows, cols, map) {
     perm: null,
     seed: null,
   };
+  const MEM_KEY = 'igp-last'; // localStorage 记忆键
+
+  function currentPassword() { return defaultPassword($('inPassword').value); }
+  /* 解析还原密钥：优先使用填入的种子，否则用「密码 → 种子」散列（密码留空则默认 123456） */
+  function resolveSeed() {
+    const pasted = parseSeed($('seedIn').value);
+    if (pasted !== null) return { seed: pasted, via: 'seed' };
+    const pwd = currentPassword();
+    return { seed: hash32(pwd), via: 'password', pwd: pwd };
+  }
+  function refreshSeedDisplay() {
+    const r = resolveSeed();
+    $('seedOut').value = String(r.seed);
+    return r;
+  }
+  /* 将本次处理参数记忆到本浏览器（供同浏览器刷新后直接还原） */
+  function remember() {
+    try { localStorage.setItem(MEM_KEY, JSON.stringify({ seed: state.seed, rows: gridRows, cols: gridCols })); } catch (e) {}
+  }
+  function loadMemory() {
+    try {
+      const o = JSON.parse(localStorage.getItem(MEM_KEY) || 'null');
+      if (o && typeof o.seed === 'number') {
+        if (o.seed >= 0 && o.seed <= 0xFFFFFFFF) $('seedIn').value = String(o.seed);
+        if (Number.isInteger(o.rows) && o.rows >= 1 && o.rows <= 64) $('inRows').value = o.rows;
+        if (Number.isInteger(o.cols) && o.cols >= 1 && o.cols <= 64) $('inCols').value = o.cols;
+        gridRows = parseInt($('inRows').value, 10); gridCols = parseInt($('inCols').value, 10);
+        $('memHint').textContent = '已载入本浏览器上次处理的种子与网格（可在上方修改，或点击「清除记忆」）。';
+      }
+    } catch (e) {}
+    refreshSeedDisplay();
+  }
 
   /* ---- 工具 ---- */
   function status(msg, kind) {
@@ -383,7 +437,8 @@ function applyTransform(dst, src, rows, cols, map) {
       status('网格行列不能大于图片像素数（当前 ' + src.width + '×' + src.height + '）', 'err');
       return;
     }
-    const seed = (Math.random() * 0xFFFFFFFF) >>> 0;
+    const key = resolveSeed();
+    const seed = key.seed;
     const perm = shuffledPermutation(g.rows * g.cols, seed);
     const tileW = Math.floor(src.width / g.cols), tileH = Math.floor(src.height / g.rows);
     const w = tileW * g.cols, h = tileH * g.rows;
@@ -400,12 +455,16 @@ function applyTransform(dst, src, rows, cols, map) {
     state.perm = perm; state.seed = seed;
     state.restored = null; state.procInput = null;
     $('dzProcessedFile').textContent = '';
-    $('seedOut').value = String(seed);
+    refreshSeedDisplay();
+    remember();
     setTag('tagProcessed', '已生成', 'ready');
     setTag('tagRestored', '未还原', 'pending');
     showCanvas('pvProcessed', out, '');
     renderMap(perm, g.rows, g.cols);
-    status('✅ 加密完成：已负片取反并按 ' + g.rows + '×' + g.cols + ' 网格打乱，种子 = ' + seed +
+    const keyDesc = key.via === 'seed'
+      ? '种子 ' + seed
+      : '密码「' + currentPassword() + '」（种子 ' + seed + '）';
+    status('✅ 加密完成：已负片取反并按 ' + g.rows + '×' + g.cols + ' 网格打乱，还原密钥：' + keyDesc +
       '。可点击「还原原图」直接还原，或下载 PNG 后通过下方入口重新上传再还原。', 'ok');
   });
 
@@ -418,21 +477,11 @@ function applyTransform(dst, src, rows, cols, map) {
       status('请先在本页加密，或上传「处理后的图片」再还原', 'warn');
       return;
     }
-    // 打乱参数：优先用内存中的 perm；若尺寸不符（用户改了网格），尝试用种子重建
-    let perm = state.perm;
-    if (perm && perm.length !== g.rows * g.cols && state.seed !== null) {
-      perm = shuffledPermutation(g.rows * g.cols, state.seed);
-    }
-    if (!perm) {
-      const s = parseSeed($('seedIn').value);
-      if (s === null) {
-        status('缺少打乱参数：请在本页先加密，或在「载入种子」处粘贴本次加密的种子', 'warn');
-        return;
-      }
-      perm = shuffledPermutation(g.rows * g.cols, s);
-      state.perm = perm; state.seed = s;
-      $('seedOut').value = String(s);
-    }
+    // 还原密钥：优先用填入的种子，否则用密码散列（密码留空则默认 123456）
+    const key = resolveSeed();
+    const perm = shuffledPermutation(g.rows * g.cols, key.seed);
+    state.perm = perm; state.seed = key.seed;
+    refreshSeedDisplay();
     // 网格对齐检查
     const tileW = Math.floor(srcCanvas.width / g.cols), tileH = Math.floor(srcCanvas.height / g.rows);
     if (tileW * g.cols !== srcCanvas.width || tileH * g.rows !== srcCanvas.height) {
@@ -456,7 +505,7 @@ function applyTransform(dst, src, rows, cols, map) {
     if (same === true) {
       status('✅ 还原完成（来源：' + sourceName + '），与加密前图像像素完全一致 ✓', 'ok');
     } else if (same === false) {
-      status('⚠️ 还原完成，但与原图像素不完全一致——请确认网格行列、种子、图片是否与加密时相同', 'warn');
+      status('⚠️ 还原完成，但与原图像素不一致——请检查密码/种子是否与加密时相同（不输入密码时默认 123456），并确认网格行列一致', 'warn');
     } else {
       status('✅ 还原完成（来源：' + sourceName + '）。提示：本会话未保留原图，如需校验像素一致性请重新上传原始图片。', 'ok');
     }
@@ -498,7 +547,8 @@ function applyTransform(dst, src, rows, cols, map) {
       state.original = obj;
       state.processed = null; state.restored = null; state.procInput = null;
       state.perm = null; state.seed = null;
-      $('seedOut').value = ''; $('seedIn').value = ''; $('dzProcessedFile').textContent = '';
+      $('dzProcessedFile').textContent = '';
+      refreshSeedDisplay();
       setTag('tagOriginal', '已就绪', 'ready');
       setTag('tagProcessed', '未处理', 'pending');
       setTag('tagRestored', '未还原', 'pending');
@@ -521,7 +571,7 @@ function applyTransform(dst, src, rows, cols, map) {
       showCanvas('pvProcessed', obj.canvas, '');
       showCanvas('pvRestored', null, '<span>点击「还原原图」恢复</span>');
       $('dzProcessedFile').textContent = obj.name + ' · ' + fmtSize(obj.size) + '（' + obj.canvas.width + '×' + obj.canvas.height + '）';
-      status('处理后的图片已载入（' + obj.canvas.width + '×' + obj.canvas.height + '）。若本页已有打乱参数将直接还原；否则请在「载入种子」处粘贴原种子。', 'ok');
+      status('处理后的图片已载入（' + obj.canvas.width + '×' + obj.canvas.height + '）。输入加密时的密码（或粘贴种子）后点击「还原原图」即可还原。', 'ok');
     }).catch(function (e) { status(e.message, 'err'); });
   });
 
@@ -537,17 +587,33 @@ function applyTransform(dst, src, rows, cols, map) {
     } else { $('seedOut').select(); document.execCommand('copy'); done(); }
   });
 
-  $('btnLoadSeed').addEventListener('click', function () {
-    const s = parseSeed($('seedIn').value);
-    if (s === null) { status('种子格式无效：应为 0~4294967295 的整数', 'warn'); return; }
-    const g = getGrid();
-    if (!g) { status('网格行列需为 1~64 的整数', 'warn'); return; }
-    state.seed = s;
-    state.perm = shuffledPermutation(g.rows * g.cols, s);
-    $('seedOut').value = String(s);
-    renderMap(state.perm, g.rows, g.cols);
-    status('种子已载入，已按当前 ' + g.rows + '×' + g.cols + ' 网格重建打乱映射。上传「处理后的图片」后点击「还原原图」即可。', 'ok');
+  /* 密码/种子交互 */
+  let pwdVisible = false;
+  $('btnTogglePwd').addEventListener('click', function () {
+    pwdVisible = !pwdVisible;
+    $('inPassword').type = pwdVisible ? 'text' : 'password';
+    this.textContent = pwdVisible ? '隐藏' : '显示';
   });
+  $('btnRandPwd').addEventListener('click', function () {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let s = '';
+    for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    $('inPassword').value = s;
+    const r = refreshSeedDisplay();
+    status('已生成随机密码：「' + s + '」（种子 ' + r.seed + '）。请牢记，还原时需输入相同密码或粘贴该种子。', 'ok');
+  });
+  $('btnClearMem').addEventListener('click', function () {
+    try { localStorage.removeItem(MEM_KEY); } catch (e) {}
+    $('seedIn').value = '';
+    $('inPassword').value = '';
+    $('memHint').textContent = '';
+    refreshSeedDisplay();
+    status('已清除本浏览器记忆的种子与网格，密码/种子已重置（未输入密码时默认 123456）。', 'ok');
+  });
+  ['inPassword', 'seedIn'].forEach(function (id) {
+    $(id).addEventListener('input', refreshSeedDisplay);
+  });
+  loadMemory(); // 启动时恢复上次处理的种子与网格（本浏览器记忆）
 
   /* ---- 下载 ---- */
   function downloadCanvas(canvas, filename) {

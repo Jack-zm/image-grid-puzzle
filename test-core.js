@@ -99,5 +99,52 @@ if (sorted !== '0,1,2,3') { console.error('  ✗ perm 不是合法排列'); fail
 const inv = invertPermutation(p);
 if (p.every((v, i) => inv[v] === i)) { console.log('  ✓ 逆置换正确'); } else { console.error('  ✗ 逆置换错误'); fails++; }
 
+/* ---- 密码 → 种子（新需求：默认密码 123456） ---- */
+const h1 = ctx.hash32('123456');
+const h2 = ctx.hash32('123456');
+const h3 = ctx.hash32('abcdef');
+if (h1 !== h2 || !Number.isInteger(h1) || h1 < 0 || h1 > 0xFFFFFFFF) { console.error('  ✗ hash32 不稳定或超出32位'); fails++; }
+else if (h1 === h3) { console.error('  ✗ hash32 对不同输入输出相同'); fails++; }
+else console.log('  ✓ hash32 确定性散列（稳定且区分输入）');
+if (ctx.defaultPassword('') !== '123456' || ctx.defaultPassword('abc') !== 'abc') { console.error('  ✗ defaultPassword 逻辑错误'); fails++; }
+else console.log('  ✓ defaultPassword：空密码默认 123456');
+
+/* 密码流程：同密码还原成功，错密码还原失败 */
+function pwdRoundtrip(w, h, rows, cols, pwd, label) {
+  const src = makeImage(w, h, 0xABCDEF ^ (w * 131 + h));
+  const seed = ctx.hash32(ctx.defaultPassword(pwd));
+  const perm = shuffledPermutation(rows * cols, seed);
+  const proc = transform(src, rows, cols, perm);
+  const rest = transform(proc, rows, cols, invertPermutation(shuffledPermutation(rows * cols, ctx.hash32(ctx.defaultPassword(pwd)))));
+  const tileW = Math.floor(w / cols), tileH = Math.floor(h / rows);
+  const expect = crop(src, tileW * cols, tileH * rows);
+  let f = 0;
+  if (!equal(rest, expect)) { console.error(`  ✗ ${label}: 相同密码还原失败`); f++; }
+  const badSeed = ctx.hash32(ctx.defaultPassword('wrong-password-for-test' + pwd));
+  const bad = transform(proc, rows, cols, invertPermutation(shuffledPermutation(rows * cols, badSeed)));
+  if (equal(bad, expect)) { console.error(`  ✗ ${label}: 错误密码竟然还原成功`); f++; }
+  if (f === 0) console.log(`  ✓ ${label} (${w}×${h}, ${rows}×${cols}, pwd="${pwd}")`);
+  return f;
+}
+/* 粘贴种子流程：用处理页面的种子直接还原 */
+function seedPasteRoundtrip(w, h, rows, cols, pwd, label) {
+  const src = makeImage(w, h, 0xABCDEF ^ (w * 131 + h));
+  const seed = ctx.hash32(ctx.defaultPassword(pwd));
+  const proc = transform(src, rows, cols, shuffledPermutation(rows * cols, seed));
+  const rest = transform(proc, rows, cols, invertPermutation(shuffledPermutation(rows * cols, seed)));
+  const tileW = Math.floor(w / cols), tileH = Math.floor(h / rows);
+  const expect = crop(src, tileW * cols, tileH * rows);
+  if (!equal(rest, expect)) { console.error(`  ✗ ${label}: 粘贴种子还原失败`); return 1; }
+  console.log(`  ✓ ${label} (${w}×${h}, ${rows}×${cols})`);
+  return 0;
+}
+
+fails += pwdRoundtrip(64, 48, 8, 8, '', '空密码→默认123456');
+fails += pwdRoundtrip(64, 48, 8, 8, '123456', '显式默认密码');
+fails += pwdRoundtrip(100, 60, 8, 8, 'my-secret-key', '自定义密码');
+fails += pwdRoundtrip(33, 21, 5, 5, '中文密码🎯', '中文/符号密码');
+fails += seedPasteRoundtrip(80, 50, 8, 8, '123456', '粘贴种子还原（默认密码）');
+fails += seedPasteRoundtrip(80, 50, 8, 8, 'custom-key', '粘贴种子还原（自定义密码）');
+
 console.log(fails === 0 ? '\n全部测试通过 ✅' : `\n存在 ${fails} 处失败 ❌`);
 process.exit(fails === 0 ? 0 : 1);
