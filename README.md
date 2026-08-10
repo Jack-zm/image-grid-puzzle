@@ -51,4 +51,4 @@ node test-core.js
 
 ## 在线预览
 
-GitHub Pages: https://{你的用户名}.github.io/image-grid-puzzle/
+GitHub Pages: https://jack-zm.github.io/image-grid-puzzle/
