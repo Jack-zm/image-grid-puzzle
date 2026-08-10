@@ -1,7 +1,7 @@
 /*
  * 共享核心算法测试套件
  * core 需提供：shuffledPermutation / invertPermutation / applyTransform /
- *              buildSeedStr / parseSeedStr / selfInversePermutation
+ *              buildSeedStr / parseSeedStr / selfInversePermutation / randomKeyFromPixels
  * 返回失败数（0 = 全部通过）
  */
 function runSuite(core) {
@@ -12,6 +12,7 @@ function runSuite(core) {
     buildSeedStr,
     parseSeedStr,
     selfInversePermutation,
+    randomKeyFromPixels,
   } = core;
 
   /* 构造合成图像：每个像素有确定且互异的 RGBA 值 */
@@ -181,6 +182,26 @@ function runSuite(core) {
   fails += involRoundtrip(40, 40, 10, 16, 31415926, '同种子处理两次还原 10x16');
   fails += involRoundtrip(20, 20, 1, 1, 1, '同种子处理两次还原 1x1');
   fails += involRoundtrip(17, 19, 3, 2, 7, '同种子处理两次还原 3x2');
+
+  /* ---- 像素 + 时间 + 随机 混合密钥（保证每次上传/处理都不同） ---- */
+  function makeSolidImage(w, h, fill) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < data.length; i++) data[i] = fill;
+    return { width: w, height: h, data };
+  }
+  const pxA = makeSolidImage(32, 32, 0x11);
+  const pxB = makeSolidImage(32, 32, 0x77);
+  const kA = randomKeyFromPixels(pxA, 1000, 2000);
+  if (!Number.isInteger(kA) || kA < 0 || kA > 0xFFFFFFFF) { console.error('  ✗ randomKeyFromPixels 输出超出 32 位'); fails++; }
+  else console.log('  ✓ randomKeyFromPixels 输出为 32 位无符号整数');
+  if (randomKeyFromPixels(pxA, 1000, 2000) !== kA) { console.error('  ✗ randomKeyFromPixels 相同输入不可复现'); fails++; }
+  else console.log('  ✓ randomKeyFromPixels 相同输入可复现（确定函数）');
+  if (randomKeyFromPixels(pxB, 1000, 2000) === kA) { console.error('  ✗ 不同像素产生相同密钥'); fails++; }
+  else console.log('  ✓ 不同图片像素 → 不同密钥');
+  if (randomKeyFromPixels(pxA, 2000, 2000) === kA) { console.error('  ✗ 不同时间产生相同密钥'); fails++; }
+  else console.log('  ✓ 不同时间戳 → 不同密钥');
+  if (randomKeyFromPixels(pxA, 1000, 9999) === kA) { console.error('  ✗ 不同随机数产生相同密钥'); fails++; }
+  else console.log('  ✓ 不同随机数 → 不同密钥');
 
   return fails;
 }

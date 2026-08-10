@@ -325,6 +325,28 @@ function applyTransform(dst, src, rows, cols, map) {
   }
 }
 
+/*
+ * 由「图片像素 + 时间戳 + 随机数」混合生成 32 位随机密钥，保证每次上传/处理都不同。
+ * imageData: { data: Uint8ClampedArray }（像素字节采样做 FNV-1a 散列，最多采样约 64K 字节）
+ * timeMs: Date.now() 时间戳；randValue: 额外随机数（可选）
+ */
+function randomKeyFromPixels(imageData, timeMs, randValue) {
+  let h = 0x811c9dc5;
+  const data = imageData.data;
+  const step = Math.max(1, Math.floor(data.length / 65536));
+  for (let i = 0; i < data.length; i += step) {
+    h ^= data[i];
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  h ^= timeMs >>> 0;
+  h = Math.imul(h, 0x01000193) >>> 0;
+  if (randValue !== undefined) {
+    h ^= randValue >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
 /* 生成完整种子：行x列-密钥。种子本身包含分割行列，还原时无需再输入行列 */
 function buildSeedStr(rows, cols, key) {
   return rows + 'x' + cols + '-' + key;
@@ -446,7 +468,7 @@ function parseSeedStr(s) {
 
     // 确定本次处理的 行/列/密钥：
     // 1) 输入了种子 → 按种子处理（完整种子自带行列；旧版数字种子配合当前网格），种子框保持用户输入值
-    // 2) 未输入种子 → 根据行列值处理：网格未变则沿用上次种子（保证可逆），否则生成随机种子并填入种子框
+    // 2) 未输入种子 → 根据行列值处理：网格未变则沿用上次种子（保证可逆）；否则稍后按「像素+时间+随机」生成新种子
     let rows, cols, key;
     const seedInput = $('seed').value.trim();
     const parsed = seedInput ? parseSeedStr(seedInput) : null;
@@ -469,9 +491,8 @@ function parseSeedStr(s) {
       rows = g.rows; cols = g.cols;
       if (state.activeSeed && state.activeSeed.rows === rows && state.activeSeed.cols === cols) {
         key = state.activeSeed.key; // 沿用上次种子 → 再处理一次即可回到原图
-      } else {
-        key = (Math.random() * 0xFFFFFFFF) >>> 0; // 随机种子
       }
+      // 否则 key 保持未定义，读取像素后由「像素 + 时间 + 随机数」生成
     }
 
     if (rows > src.height || cols > src.width) {
@@ -479,10 +500,22 @@ function parseSeedStr(s) {
       return;
     }
 
-    const perm = selfInversePermutation(rows * cols, key); // 自逆置换：处理两次即还原
     const tileW = Math.floor(src.width / cols), tileH = Math.floor(src.height / rows);
     const w = tileW * cols, h = tileH * rows;
-    const srcData = src.getContext('2d').getImageData(0, 0, w, h);
+    let srcData;
+    try {
+      srcData = src.getContext('2d').getImageData(0, 0, w, h);
+    } catch (e) {
+      status('读取像素失败，请重试或换一张图片', 'err');
+      return;
+    }
+
+    // 需要新随机密钥：由「图片像素 + 时间戳 + 随机数」混合生成，保证每次上传/处理都不同
+    if (key === undefined) {
+      key = randomKeyFromPixels(srcData, Date.now(), Math.random() * 0xFFFFFFFF);
+    }
+
+    const perm = selfInversePermutation(rows * cols, key); // 自逆置换：处理两次即还原
     const out = document.createElement('canvas');
     out.width = w; out.height = h;
     const outData = out.getContext('2d').createImageData(w, h);
@@ -517,6 +550,7 @@ function parseSeedStr(s) {
     state.original = obj;
     state.current = { canvas: clone };
     state.activeSeed = null;
+    $('seed').value = ''; // 上传新图片：清空旧种子，处理时按「像素+时间+随机」生成全新种子
     $('dzImageFile').textContent = (obj.name || '图片') +
       (obj.size != null ? ' · ' + fmtSize(obj.size) : '') +
       '（' + obj.canvas.width + '×' + obj.canvas.height + '）' + (sourceNote ? ' · ' + sourceNote : '');
