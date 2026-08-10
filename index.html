@@ -135,17 +135,35 @@
   .modal-body img{max-width:100%; max-height:70vh; border-radius:8px; display:block}
   .modal-foot{display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--line)}
   .modal-foot button{flex:none; padding:9px 20px}
-  .principle{
-    margin-top:16px; background:#fff; border:1px solid var(--line); border-radius:10px;
-    padding:12px 14px; line-height:1.7; font-size:12.5px; color:var(--muted);
+  /* 可折叠区块（高级设置 / 工作原理） */
+  details.advanced, details.principle-details{
+    border:1px solid var(--line); border-radius:12px; background:#fafbff;
+    margin-top:14px; overflow:hidden;
   }
+  details summary{
+    cursor:pointer; padding:10px 14px; font-size:13.5px; font-weight:600; color:var(--accent-ink);
+    list-style:none; user-select:none; display:flex; justify-content:space-between; align-items:center;
+  }
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:'▸'; color:var(--muted); transition:transform .15s}
+  details[open] summary::after{transform:rotate(90deg)}
+  .adv-body, .principle-body{padding:0 14px 14px; font-size:12.5px; color:var(--muted); line-height:1.7}
+  .adv-label{font-size:13px; font-weight:600; color:var(--ink); margin-bottom:6px}
+  .adv-group{margin-bottom:14px}
+  .adv-group:last-child{margin-bottom:0}
+  /* 上传区小字链接入口 */
+  .url-line{display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--muted)}
+  .url-input{flex:1; min-width:0; font-size:12px; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:#fafbff; color:var(--ink); outline:none}
+  .url-input:focus{border-color:var(--accent)}
+  .url-btn{font-size:12px; padding:4px 10px; background:none; color:var(--accent); border-radius:6px; font-weight:600}
+  .url-btn:hover{background:var(--accent-weak)}
 </style>
 </head>
 <body>
 
 <header>
   <h1>🖼️ 图片网格处理 · 同种子可逆</h1>
-  <p>上传图片 → 切成 N×N 网格 → 负片取反 → 按种子打乱。<strong>处理是自逆运算：同一图片用相同种子再处理一次即回到原图</strong>。未输入种子时按网格行列自动生成随机种子；输入种子时按种子处理（种子含行列，优先于网格输入）。全部功能在浏览器本地完成，无后端、无需联网。</p>
+  <p>上传图片 → 切格取反 → 按种子打乱；<strong>同一种子再处理一次即还原</strong>。全部在浏览器本地完成，无需联网。</p>
 </header>
 
 <main>
@@ -157,40 +175,47 @@
       <span>上传图片（点击或拖拽）</span>
       <div class="dz-file" id="dzImageFile"></div>
     </div>
-    <div class="hint">可再次上传任意图片（包括之前处理的结果），配合种子即可还原。</div>
-    <div class="seed-row" style="margin-top:10px">
-      <input id="urlImage" placeholder="粘贴图片链接（https://…）" spellcheck="false" autocomplete="off">
-      <button class="btn-plain" id="btnLoadUrl">加载链接</button>
+    <div class="hint">支持重复上传；也可在其他网页右键复制图片、截图后直接 Ctrl+V 粘贴。</div>
+    <div class="url-line">
+      <span>或粘贴图片链接：</span>
+      <input id="urlImage" class="url-input" placeholder="https://…" spellcheck="false" autocomplete="off">
+      <button class="url-btn" id="btnLoadUrl">加载</button>
     </div>
-    <div class="hint">还支持：在其他网页<strong>右键复制图片</strong>、截图后直接 <strong>Ctrl+V 粘贴</strong>，或复制图片链接粘贴到上方输入框后点「加载链接」。</div>
     <input type="file" id="fileImage" accept="image/*" hidden>
 
-    <h2><span class="step-num">2</span>网格设置</h2>
-    <div class="grid-inputs">
-      <label>行</label><input type="number" id="inRows" min="1" max="64" value="8">
-      <label>列</label><input type="number" id="inCols" min="1" max="64" value="8">
-    </div>
-    <div class="hint">行列数存于变量 gridRows / gridCols（默认 8×8）。<strong>未输入种子时按此行列值处理</strong>；输入种子时以种子内的行列为主。</div>
+    <details class="advanced" id="advSettings">
+      <summary>⚙️ 高级设置（网格 / 种子）</summary>
+      <div class="adv-body">
+        <div class="adv-group">
+          <div class="adv-label">网格行列（默认 8×8）</div>
+          <div class="grid-inputs">
+            <label>行</label><input type="number" id="inRows" min="1" max="64" value="8">
+            <label>列</label><input type="number" id="inCols" min="1" max="64" value="8">
+          </div>
+          <div class="hint">未输入种子时按此行列处理；输入种子时以种子内的行列为主。</div>
+        </div>
+        <div class="adv-group">
+          <div class="adv-label">种子（可选）</div>
+          <div class="seed-row">
+            <input id="seed" placeholder="种子（可粘贴；处理后自动填入本次使用的种子）" spellcheck="false" autocomplete="off">
+            <button class="btn-plain" id="btnCopySeed" title="复制种子">复制</button>
+          </div>
+          <div class="hint">格式 行x列-密钥（已含分割行列）。页面不保存任何记录，刷新即重置。</div>
+        </div>
+      </div>
+    </details>
 
-    <h2><span class="step-num">3</span>种子（可选）</h2>
-    <div class="hint" style="margin-top:-4px">种子格式「行x列-密钥」（如 8x8-1234567890），<strong>已包含分割行列</strong>。填入种子时按种子处理（优先于网格输入）；留空时页面按行列自动生成随机种子，并填入此框供复制。</div>
-    <div class="seed-row">
-      <input id="seed" placeholder="种子（可粘贴；处理后会填入本次使用的种子）" spellcheck="false" autocomplete="off">
-      <button class="btn-plain" id="btnCopySeed" title="复制种子">复制</button>
-    </div>
-    <div class="hint">本页面<strong>不保存任何使用记录</strong>：关闭或刷新后，网格恢复默认 8×8、种子清空，不会残留上次访问的信息。</div>
-
-    <h2><span class="step-num">4</span>处理</h2>
+    <h2><span class="step-num">2</span>处理</h2>
     <div class="actions">
       <button class="btn-primary" id="btnProcess">⚙️ 处理</button>
     </div>
-    <div class="hint">同一图片用<strong>相同种子</strong>处理两次即回到原图（打乱 ↔ 还原）。未输入种子时：首次按当前行列生成随机种子；网格未变时再次点击沿用上次种子（即可逆）。</div>
+    <div class="hint">同一图片用相同种子再处理一次即回到原图。</div>
 
-    <h2><span class="step-num">5</span>下载</h2>
+    <h2><span class="step-num">3</span>下载</h2>
     <div class="actions">
       <button class="btn-primary" id="btnDl">⬇️ 下载当前结果</button>
     </div>
-    <div class="hint">请以 PNG 无损格式导出/导入，保证可逆。</div>
+    <div class="hint">PNG 无损格式。</div>
 
     <div id="status"></div>
   </section>
@@ -214,11 +239,14 @@
       </figure>
     </div>
 
-    <div class="principle">
-      <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按种子里的密钥生成<strong>自逆置换</strong>并打乱小格。<strong>处理是自逆运算：负片取反两次即复原、自逆置换作用两次即还原，因此用同一种子处理两次必然回到原图</strong>。
-      未输入种子时：按当前行列自动生成随机种子处理，种子会自动填入种子框（可复制保存）；网格不变时再次点击「处理」会沿用该种子，从而可逆。输入种子时：按种子（含行列）处理，种子优先于网格输入，处理后种子框保持为你输入的值。
-      <br>注意：请使用 PNG 等<strong>无损格式</strong>保存，保证像素一致。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
-    </div>
+    <details class="principle-details">
+      <summary>工作原理（点击展开）</summary>
+      <div class="principle-body">
+        ① 将图片按「行×列」切成小格（行列可在高级设置修改）；② 对每个小格做负片取反；③ 按种子密钥生成<strong>自逆置换</strong>并打乱。<strong>处理是自逆运算：取反两次复原、置换两次还原，同一种子处理两次必然回到原图</strong>。
+        未输入种子时按行列自动生成随机种子并填入种子框；输入种子则按种子处理（种子含行列）。
+        <br>注意：请使用 PNG 等<strong>无损格式</strong>。<strong>所有处理均在浏览器本地完成，图片不会上传到任何服务器。</strong>
+      </div>
+    </details>
   </section>
 </main>
 
