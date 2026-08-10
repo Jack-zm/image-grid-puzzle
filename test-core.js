@@ -142,5 +142,42 @@ else console.log('  ✓ 随机种子可复现（同种子=同打乱）');
 if (r1 !== r2 && JSON.stringify(permR1a) === JSON.stringify(permR2)) { console.error('  ✗ 不同随机种子产生了相同打乱'); fails++; }
 else console.log('  ✓ 不同随机种子=不同打乱（每次处理均随机）');
 
+/* ---- 自逆置换（处理两次即还原的核心） ---- */
+function isInvolution(sig) {
+  for (let i = 0; i < sig.length; i++) if (sig[sig[i]] !== i) return false;
+  return true;
+}
+const inv1 = ctx.selfInversePermutation(64, 12345);
+const invSorted = [...inv1].sort((a, b) => a - b).join(',');
+if (invSorted !== Array.from({ length: 64 }, (_, i) => i).join(',')) { console.error('  ✗ selfInversePermutation 不是合法排列'); fails++; }
+else if (!isInvolution(inv1)) { console.error('  ✗ selfInversePermutation 不是自逆置换'); fails++; }
+else console.log('  ✓ selfInversePermutation 是合法且自逆的置换');
+const invOdd = ctx.selfInversePermutation(9, 7); // 奇数：1 个不动点
+if (!isInvolution(invOdd)) { console.error('  ✗ 奇数个元素时自逆性失败'); fails++; }
+else console.log('  ✓ 奇数元素（9 个）自逆性正确');
+const inv2 = ctx.selfInversePermutation(64, 54321);
+if (JSON.stringify(inv1) === JSON.stringify(inv2)) { console.error('  ✗ 不同种子产生了相同自逆置换'); fails++; }
+else console.log('  ✓ 不同种子=不同自逆置换');
+
+/* 页面新行为：同一图片用同一 map（自逆置换）处理两次 → 回到原图 */
+function involRoundtrip(w, h, rows, cols, key, label) {
+  const src = makeImage(w, h, 0xABCDEF ^ (w * 131 + h));
+  const sig = ctx.selfInversePermutation(rows * cols, key);
+  const once = transform(src, rows, cols, sig);       // 处理第 1 次
+  const twice = transform(once, rows, cols, sig);     // 同一 map 处理第 2 次 → 应还原
+  const tileW = Math.floor(w / cols), tileH = Math.floor(h / rows);
+  const expect = crop(src, tileW * cols, tileH * rows);
+  if (!equal(twice, expect)) { console.error(`  ✗ ${label}: 处理两次未还原`); return 1; }
+  if (equal(once, expect)) { console.error(`  ✗ ${label}: 处理一次竟然等于原图（未打乱）`); return 1; }
+  console.log(`  ✓ ${label} (${w}×${h}, ${rows}×${cols}, key=${key})`);
+  return 0;
+}
+fails += involRoundtrip(64, 48, 8, 8, 123456, '同种子处理两次还原 8x8');
+fails += involRoundtrip(100, 60, 8, 8, 987654321, '同种子处理两次还原 8x8(非整倍)');
+fails += involRoundtrip(33, 21, 5, 5, 42, '同种子处理两次还原 5x5');
+fails += involRoundtrip(40, 40, 10, 16, 31415926, '同种子处理两次还原 10x16');
+fails += involRoundtrip(20, 20, 1, 1, 1, '同种子处理两次还原 1x1');
+fails += involRoundtrip(17, 19, 3, 2, 7, '同种子处理两次还原 3x2');
+
 console.log(fails === 0 ? '\n全部测试通过 ✅' : `\n存在 ${fails} 处失败 ❌`);
 process.exit(fails === 0 ? 0 : 1);

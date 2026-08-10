@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>图片网格打乱加密 · 一键还原</title>
+<title>图片网格处理 · 同种子可逆</title>
 <style>
   :root{
     --bg:#f5f6fa; --card:#ffffff; --line:#e4e7f0;
@@ -25,9 +25,9 @@
     color:#fff; padding:26px 20px 22px; text-align:center;
   }
   header h1{margin:0 0 6px; font-size:24px; letter-spacing:.5px}
-  header p{margin:0 auto; max-width:760px; font-size:14px; opacity:.92}
+  header p{margin:0 auto; max-width:780px; font-size:14px; opacity:.94}
   main{
-    max-width:1240px; margin:22px auto 10px; padding:0 16px;
+    max-width:1120px; margin:22px auto 10px; padding:0 16px;
     display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;
   }
   .panel{
@@ -45,12 +45,11 @@
   .dropzone{
     border:2px dashed #c7cbe0; border-radius:12px; padding:16px 12px;
     text-align:center; color:var(--muted); font-size:13px; cursor:pointer;
-    transition:border-color .15s, background .15s; background:#fafbff; position:relative;
+    transition:border-color .15s, background .15s; background:#fafbff;
   }
   .dropzone:hover,.dropzone.drag{border-color:var(--accent); background:var(--accent-weak)}
   .dropzone .dz-icon{font-size:22px; display:block; margin-bottom:4px}
-  .dropzone .dz-file{font-weight:600; color:var(--ink); font-size:12.5px; word-break:break-all}
-  .dz + .dz{margin-top:10px}
+  .dropzone .dz-file{font-weight:600; color:var(--ink); font-size:12.5px; word-break:break-all; margin-top:4px}
   .grid-inputs{display:flex; gap:10px; align-items:center}
   .grid-inputs label{font-size:13px; color:var(--muted); flex:none}
   .grid-inputs input{
@@ -58,7 +57,7 @@
     font-size:14px; text-align:center; outline:none; color:var(--ink); background:#fff;
   }
   .grid-inputs input:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-weak)}
-  .actions{display:flex; gap:10px; flex-wrap:wrap}
+  .actions{display:flex; gap:10px}
   button{
     border:none; border-radius:9px; padding:10px 14px; font-size:14px; font-weight:600;
     cursor:pointer; transition:transform .05s, filter .15s, box-shadow .15s; font-family:inherit;
@@ -66,12 +65,8 @@
   button:active{transform:translateY(1px)}
   .btn-primary{background:var(--accent); color:#fff; flex:1}
   .btn-primary:hover{filter:brightness(1.07); box-shadow:0 4px 14px rgba(79,70,229,.35)}
-  .btn-ghost{background:var(--accent-weak); color:var(--accent-ink)}
-  .btn-ghost:hover{filter:brightness(.97)}
   .btn-plain{background:#f1f2f7; color:var(--ink)}
   .btn-plain:hover{filter:brightness(.96)}
-  .btn:disabled{opacity:.45; cursor:not-allowed}
-  .secret{margin-top:12px}
   .seed-row{display:flex; gap:6px; margin-top:6px}
   .seed-row input{
     flex:1; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
@@ -87,7 +82,7 @@
   #status.warn{display:block; background:var(--warn-weak); color:var(--warn); border:1px solid #f0d9ae}
   #status.err{display:block; background:var(--err-weak); color:var(--err); border:1px solid #f3c1c1}
   .previews h2{margin-top:0}
-  .preview-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .preview-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px}
   @media(max-width:900px){ .preview-grid{grid-template-columns:1fr} main{grid-template-columns:1fr} }
   figure{margin:0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fafbff}
   figcaption{
@@ -116,7 +111,7 @@
   }
   .map-empty{font-size:12.5px; color:var(--muted)}
   footer{
-    max-width:1240px; margin:6px auto 26px; padding:0 16px;
+    max-width:1120px; margin:6px auto 26px; padding:0 16px;
     font-size:12.5px; color:var(--muted);
   }
   footer .note{
@@ -127,60 +122,52 @@
 <body>
 
 <header>
-  <h1>🖼️ 图片网格打乱加密 / 一键还原</h1>
-  <p>上传图片 → 切成 N×N 网格 → 负片取反 → 随机种子打乱。种子包含分割行列（如 8x8-xxxx），上传处理后的图片（或直接在同一页面）粘贴生成页面的种子即可无损还原。全部功能在浏览器本地完成，无后端、无需联网。</p>
+  <h1>🖼️ 图片网格处理 · 同种子可逆</h1>
+  <p>上传图片 → 切成 N×N 网格 → 负片取反 → 按种子打乱。<strong>处理是自逆运算：同一图片用相同种子再处理一次即回到原图</strong>。未输入种子时按网格行列自动生成随机种子；输入种子时按种子处理（种子含行列，优先于网格输入）。全部功能在浏览器本地完成，无后端、无需联网。</p>
 </header>
 
 <main>
   <!-- 左侧：控制区 -->
   <section class="panel">
     <h2><span class="step-num">1</span>上传图片</h2>
-    <div class="dropzone" id="dzOriginal">
+    <div class="dropzone" id="dzImage">
       <span class="dz-icon">🖼️</span>
-      <span>上传<strong>原始图片</strong>（点击或拖拽）</span>
-      <div class="dz-file" id="dzOriginalFile" style="margin-top:4px"></div>
+      <span>上传图片（点击或拖拽）</span>
+      <div class="dz-file" id="dzImageFile"></div>
     </div>
-    <div class="dropzone" id="dzProcessed">
-      <span class="dz-icon">🔁</span>
-      <span>上传<strong>处理后的图片</strong>（粘贴生成页面的种子即可还原）</span>
-      <div class="dz-file" id="dzProcessedFile" style="margin-top:4px"></div>
-    </div>
-    <input type="file" id="fileOriginal" accept="image/*" hidden>
-    <input type="file" id="fileProcessed" accept="image/*" hidden>
+    <div class="hint">可再次上传任意图片（包括之前处理的结果），配合种子即可还原。</div>
+    <input type="file" id="fileImage" accept="image/*" hidden>
 
     <h2><span class="step-num">2</span>网格设置</h2>
     <div class="grid-inputs">
       <label>行</label><input type="number" id="inRows" min="1" max="64" value="8">
       <label>列</label><input type="number" id="inCols" min="1" max="64" value="8">
     </div>
-    <div class="hint">行列数存于 JS 变量 gridRows / gridCols，可自由修改（默认 8×8）。生成的种子会包含行列（如 8x8-xxxx），还原时只需粘贴种子，无需再设置网格。</div>
+    <div class="hint">行列数存于变量 gridRows / gridCols（默认 8×8）。<strong>未输入种子时按此行列值处理</strong>；输入种子时以种子内的行列为主。</div>
 
-    <h2><span class="step-num">3</span>操作</h2>
+    <h2><span class="step-num">3</span>处理</h2>
     <div class="actions">
-      <button class="btn-primary" id="btnShuffle">🔀 加密并打乱</button>
-      <button class="btn-ghost" id="btnRestore" style="flex:1">🔄 还原原图</button>
+      <button class="btn-primary" id="btnProcess">⚙️ 处理</button>
     </div>
+    <div class="hint">同一图片用<strong>相同种子</strong>处理两次即回到原图（打乱 ↔ 还原）。未输入种子时：首次按当前行列生成随机种子；网格未变时再次点击沿用上次种子（即可逆）。</div>
 
-    <div class="secret">
-      <h2><span class="step-num">4</span>种子（还原密钥）</h2>
-      <div class="hint" style="margin-top:-4px">每次加密使用<strong>随机种子</strong>打乱。种子格式为「行x列-密钥」（如 8x8-1234567890），<strong>已包含分割行列：还原时只需粘贴生成页面的种子，无需再输入行列值</strong>；负片取反是自逆运算（取反两次即复原）。</div>
-      <div class="seed-row">
-        <input id="seedOut" readonly placeholder="种子（加密后自动生成，含行列）" title="本次打乱使用的种子（含分割行列）">
-        <button class="btn-plain" id="btnCopySeed">复制</button>
-      </div>
-      <div class="seed-row">
-        <input id="seedIn" placeholder="粘贴生成页面的种子即可还原（含行列，无需再设网格）">
-        <button class="btn-plain" id="btnClearMem" title="清除本浏览器记住的种子">清除记忆</button>
-      </div>
-      <div class="hint" id="memHint"></div>
+    <h2><span class="step-num">4</span>种子（可选）</h2>
+    <div class="hint" style="margin-top:-4px">种子格式「行x列-密钥」（如 8x8-1234567890），<strong>已包含分割行列</strong>。填入种子时按种子处理（优先于网格输入）；留空时页面按行列自动生成随机种子，并显示在下方。</div>
+    <div class="seed-row">
+      <input id="seedIn" placeholder="粘贴种子（可选；填入后按种子处理）">
+      <button class="btn-plain" id="btnClearMem" title="清除本浏览器记住的种子">清除记忆</button>
     </div>
+    <div class="seed-row">
+      <input id="seedOut" readonly placeholder="处理使用的种子（自动生成/更新）">
+      <button class="btn-plain" id="btnCopySeed">复制</button>
+    </div>
+    <div class="hint" id="memHint"></div>
 
     <h2><span class="step-num">5</span>下载</h2>
     <div class="actions">
-      <button class="btn-primary" id="btnDlProc" style="flex:1">⬇️ 下载处理结果</button>
-      <button class="btn-ghost" id="btnDlRest" style="flex:1">⬇️ 下载还原结果</button>
+      <button class="btn-primary" id="btnDl">⬇️ 下载当前结果</button>
     </div>
-    <div class="hint">请以 PNG 无损格式导出/导入，保证像素一致、可完美还原。</div>
+    <div class="hint">请以 PNG 无损格式导出/导入，保证可逆。</div>
 
     <div id="status"></div>
   </section>
@@ -194,27 +181,23 @@
         <div class="holder" id="pvOriginal"><span>尚未上传图片</span></div>
       </figure>
       <figure>
-        <figcaption>处理结果（负片 + 打乱）<span class="tag pending" id="tagProcessed">未处理</span></figcaption>
-        <div class="holder" id="pvProcessed"><span>点击「加密并打乱」生成</span></div>
-      </figure>
-      <figure>
-        <figcaption>还原结果<span class="tag pending" id="tagRestored">未还原</span></figcaption>
-        <div class="holder" id="pvRestored"><span>点击「还原原图」恢复</span></div>
+        <figcaption>当前结果<span class="tag pending" id="tagCurrent">—</span></figcaption>
+        <div class="holder" id="pvCurrent"><span>上传图片后点击「处理」</span></div>
       </figure>
     </div>
 
     <div class="mapping">
-      <h3>打乱映射（每格数字 = 该位置取自原图的第几格，从左到右、从上到下从 0 编号）</h3>
-      <div id="mapGrid"><span class="map-empty">完成加密后在此显示打乱顺序</span></div>
+      <h3>最近一次处理的打乱映射（每格数字 = 该位置取自上一张图的第几格，从 0 编号）</h3>
+      <div id="mapGrid"><span class="map-empty">处理后将在此显示打乱顺序</span></div>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="note">
-    <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按<strong>随机种子</strong>生成的置换顺序打乱小格。<strong>种子格式为「行x列-密钥」，已包含分割行列。</strong>
-    还原时：把当前图片重新切格 → 按<strong>逆置换</strong>把小格放回原位 → 再取反一次（抵消负片），即得原图。同一页面直接还原，或下载 PNG 后重新上传到「处理后的图片」入口，把生成页面的种子粘贴到种子框——<strong>自动识别行列，无需手动设置网格，即可无损还原</strong>。
-    <br>注意：还原必须使用生成页面提供的种子（种子已含行列）；请使用 PNG 等无损格式。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
+    <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按种子里的密钥生成<strong>自逆置换</strong>并打乱小格。<strong>处理是自逆运算：负片取反两次即复原、自逆置换作用两次即还原，因此用同一种子处理两次必然回到原图</strong>。
+    未输入种子时：按当前行列自动生成随机种子处理，种子会显示在「处理使用的种子」中；网格不变时再次点击「处理」会沿用该种子，从而可逆。输入种子时：按种子（含行列）处理，种子优先于网格输入。
+    <br>注意：请使用 PNG 等<strong>无损格式</strong>保存，保证像素一致。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
   </div>
 </footer>
 
@@ -231,6 +214,28 @@ function shuffledPermutation(n, seed) {
     const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
   }
   return arr;
+}
+
+/*
+ * 生成 [0, n) 的“自逆置换”（若干对两两互换，n 为奇数时余一个不动点）。
+ * 满足 σ(σ(i)) = i，因此同一图片用同一映射处理两次必然回到原图（打乱 ↔ 还原）。
+ * 构造：Fisher–Yates 打乱后，将元素两两配对为互换对（σ[a]=b, σ[b]=a）。
+ */
+function selfInversePermutation(n, seed) {
+  const rng = mulberry32(seed >>> 0);
+  const arr = new Array(n);
+  for (let i = 0; i < n; i++) arr[i] = i;
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  const sigma = new Array(n);
+  for (let i = 0; i + 1 < n; i += 2) {
+    const a = arr[i], b = arr[i + 1];
+    sigma[a] = b; sigma[b] = a; // 互换对：σ(a)=b 且 σ(b)=a
+  }
+  if (n % 2 === 1) sigma[arr[n - 1]] = arr[n - 1]; // 奇数：余一个不动点
+  return sigma;
 }
 
 /* mulberry32：小巧可复现的 PRNG */
@@ -253,8 +258,9 @@ function invertPermutation(perm) {
 /*
  * 将 src 按 rows×cols 网格切块（每块 floor(w/cols) × floor(h/rows)），
  * 按 map 指定的顺序搬运到 dst 对应位置，并做负片取反（255 - RGB，Alpha 不变）。
- *  - 加密：map = perm（dst 第 i 格取 src 第 perm[i] 格）
- *  - 还原：map = invertPermutation(perm)（抵消打乱），取反再抵消负片
+ *  - map = perm（自逆置换）时：打乱 + 取反；同一 map 连续作用两次即还原
+ *    （取反两次抵消、自逆置换两次复原 → 处理是自逆运算）
+ *  - 对任意置换 perm，也可用 map = invertPermutation(perm) 还原
  * src/dst 为 { width, height, data: Uint8ClampedArray } 结构。
  */
 function applyTransform(dst, src, rows, cols, map) {
@@ -291,7 +297,7 @@ function buildSeedStr(rows, cols, key) {
 /*
  * 解析种子：
  *  - 完整格式 "行x列-密钥"（如 8x8-1234567890）→ { rows, cols, key, format:'full' }，行列可直接使用
- *  - 旧版纯数字种子（v1/v2，不含行列）→ { rows:0, cols:0, key, format:'legacy' }，需配合当前网格
+ *  - 旧版纯数字种子（不含行列）→ { rows:0, cols:0, key, format:'legacy' }，需配合当前网格
  *  - 非法输入 → null
  */
 function parseSeedStr(s) {
@@ -314,38 +320,15 @@ function parseSeedStr(s) {
 
   /* ---- 网格行列：以变量形式存储，默认 8×8，由输入框控制 ---- */
   let gridRows = 8, gridCols = 8;
-  const MAX_DIM = 4096; // 超大图片自动缩放到最长边 4096px，保证还原仍像素级一致
+  const MAX_DIM = 4096; // 超大图片自动缩放到最长边 4096px，保证可逆仍像素级一致
+  const MEM_KEY = 'igp-last'; // localStorage 记忆键
 
   const $ = (id) => document.getElementById(id);
   const state = {
-    original: null,   // { canvas, name, size }
-    processed: null,  // { canvas }
-    restored: null,   // { canvas }
-    procInput: null,  // 重新上传的处理后图片 { canvas, name, size }
-    perm: null,
-    seed: null,
-    seedStr: null,    // 完整种子（行x列-密钥）
+    original: null,     // { canvas, name, size } 上传的原图（参考）
+    current: null,      // { canvas } 当前工作图（每次处理更新）
+    activeSeed: null,   // { rows, cols, key } 最近一次处理使用的种子
   };
-  const MEM_KEY = 'igp-last'; // localStorage 记忆键
-
-  /* 将本次处理种子记忆到本浏览器（种子已含行列，还原无需再设网格） */
-  function remember() {
-    try { localStorage.setItem(MEM_KEY, state.seedStr || ''); } catch (e) {}
-  }
-  function loadMemory() {
-    try {
-      const s = localStorage.getItem(MEM_KEY);
-      if (s) {
-        const parsed = parseSeedStr(s);
-        if (parsed && parsed.format === 'full') {
-          $('seedIn').value = s;
-          $('inRows').value = parsed.rows; $('inCols').value = parsed.cols;
-          gridRows = parsed.rows; gridCols = parsed.cols;
-          $('memHint').textContent = '已载入本浏览器上次处理的种子（含行列，已自动同步网格）。可修改或点击「清除记忆」。';
-        }
-      }
-    } catch (e) {}
-  }
 
   /* ---- 工具 ---- */
   function status(msg, kind) {
@@ -353,8 +336,6 @@ function parseSeedStr(s) {
     el.textContent = msg;
     el.className = kind || 'ok';
   }
-  function clearStatus() { $('status').className = ''; $('status').textContent = ''; }
-
   function showCanvas(holderId, canvas, fallbackHtml) {
     const holder = $(holderId);
     holder.innerHTML = '';
@@ -377,6 +358,30 @@ function parseSeedStr(s) {
     gridRows = r; gridCols = c;
     return { rows: r, cols: c };
   }
+  function pixelsMatch(a, b) {
+    const w = Math.min(a.width, b.width), h = Math.min(a.height, b.height);
+    const da = a.getContext('2d').getImageData(0, 0, w, h).data;
+    const db = b.getContext('2d').getImageData(0, 0, w, h).data;
+    for (let i = 0; i < da.length; i++) if (da[i] !== db[i]) return false;
+    return true;
+  }
+  function remember(seedStr) {
+    try { localStorage.setItem(MEM_KEY, seedStr || ''); } catch (e) {}
+  }
+  function loadMemory() {
+    try {
+      const s = localStorage.getItem(MEM_KEY);
+      if (s) {
+        const parsed = parseSeedStr(s);
+        if (parsed && parsed.format === 'full') {
+          $('seedIn').value = s;
+          $('inRows').value = parsed.rows; $('inCols').value = parsed.cols;
+          gridRows = parsed.rows; gridCols = parsed.cols;
+          $('memHint').textContent = '已载入上次使用的种子（含行列，已同步网格）。可修改或点击「清除记忆」。';
+        }
+      }
+    } catch (e) {}
+  }
 
   /* ---- 图片加载 ---- */
   function loadImage(file, maxDim) {
@@ -397,7 +402,6 @@ function parseSeedStr(s) {
       img.src = url;
     });
   }
-
   function bindUpload(dzId, fileId, onLoaded) {
     const dz = $(dzId), input = $(fileId);
     dz.addEventListener('click', function () { input.click(); });
@@ -412,108 +416,6 @@ function parseSeedStr(s) {
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       if (f) onLoaded(f);
     });
-  }
-
-  /* ---- 加密（负片 + 打乱） ---- */
-  $('btnShuffle').addEventListener('click', function () {
-    if (!state.original) { status('请先上传原始图片', 'warn'); return; }
-    const g = getGrid();
-    if (!g) { status('网格行列需为 1~64 的整数', 'warn'); return; }
-    const src = state.original.canvas;
-    if (g.rows > src.height || g.cols > src.width) {
-      status('网格行列不能大于图片像素数（当前 ' + src.width + '×' + src.height + '）', 'err');
-      return;
-    }
-    const key = (Math.random() * 0xFFFFFFFF) >>> 0; // 每次处理使用随机种子
-    const seedStr = buildSeedStr(g.rows, g.cols, key);
-    const perm = shuffledPermutation(g.rows * g.cols, key);
-    const tileW = Math.floor(src.width / g.cols), tileH = Math.floor(src.height / g.rows);
-    const w = tileW * g.cols, h = tileH * g.rows;
-    const srcData = src.getContext('2d').getImageData(0, 0, w, h);
-    const out = document.createElement('canvas');
-    out.width = w; out.height = h;
-    const outData = out.getContext('2d').createImageData(w, h);
-    try {
-      applyTransform(outData, srcData, g.rows, g.cols, perm);
-    } catch (e) { status(e.message, 'err'); return; }
-    out.getContext('2d').putImageData(outData, 0, 0);
-
-    state.processed = { canvas: out };
-    state.perm = perm; state.seed = key; state.seedStr = seedStr;
-    state.restored = null; state.procInput = null;
-    $('dzProcessedFile').textContent = '';
-    $('seedOut').value = seedStr;
-    remember();
-    setTag('tagProcessed', '已生成', 'ready');
-    setTag('tagRestored', '未还原', 'pending');
-    showCanvas('pvProcessed', out, '');
-    renderMap(perm, g.rows, g.cols);
-    status('✅ 加密完成：已负片取反并按 ' + g.rows + '×' + g.cols + ' 网格打乱，种子：' + seedStr +
-      '（已含分割行列）。可点击「还原原图」直接还原，或下载 PNG 后重新上传，粘贴该种子即可无损还原。', 'ok');
-  });
-
-  /* ---- 还原（逆置换 + 再次取反） ---- */
-  $('btnRestore').addEventListener('click', function () {
-    const srcCanvas = state.procInput ? state.procInput.canvas : (state.processed ? state.processed.canvas : null);
-    if (!srcCanvas) {
-      status('请先在本页加密，或上传「处理后的图片」再还原', 'warn');
-      return;
-    }
-    // 1) 优先：粘贴的种子（含行列，自动识别网格，无需手动输入）
-    let rows, cols, key;
-    const parsed = parseSeedStr($('seedIn').value);
-    if (parsed && parsed.format === 'full') {
-      rows = parsed.rows; cols = parsed.cols; key = parsed.key;
-      $('inRows').value = rows; $('inCols').value = cols;
-      gridRows = rows; gridCols = cols;
-    } else if (parsed && parsed.format === 'legacy') {
-      // 2) 旧版纯数字种子（不含行列）：行列取当前输入框
-      const g = getGrid();
-      if (!g) { status('旧版数字种子不含行列：请设置网格行列后重试', 'warn'); return; }
-      rows = g.rows; cols = g.cols; key = parsed.key;
-    } else {
-      status('请粘贴生成页面的种子（格式：行x列-密钥，含行列）后再还原', 'warn');
-      return;
-    }
-    const seedStr = buildSeedStr(rows, cols, key);
-    const perm = shuffledPermutation(rows * cols, key);
-    state.perm = perm; state.seed = key; state.seedStr = seedStr;
-    $('seedOut').value = seedStr;
-    // 网格对齐检查（完整种子天然对齐；旧版数字种子路径需校验）
-    const tileW = Math.floor(srcCanvas.width / cols), tileH = Math.floor(srcCanvas.height / rows);
-    if (tileW * cols !== srcCanvas.width || tileH * rows !== srcCanvas.height) {
-      status('⚠️ 图片尺寸与种子/网格不完全对齐，请确认种子与图片匹配（网格需与加密时一致）', 'warn');
-    }
-    const srcData = srcCanvas.getContext('2d').getImageData(0, 0, srcCanvas.width, srcCanvas.height);
-    const inverse = invertPermutation(perm);
-    const out = document.createElement('canvas');
-    out.width = srcCanvas.width; out.height = srcCanvas.height;
-    const outData = out.getContext('2d').createImageData(srcCanvas.width, srcCanvas.height);
-    try {
-      applyTransform(outData, srcData, rows, cols, inverse);
-    } catch (e) { status(e.message, 'err'); return; }
-    out.getContext('2d').putImageData(outData, 0, 0);
-
-    state.restored = { canvas: out };
-    setTag('tagRestored', '已还原', 'done');
-    showCanvas('pvRestored', out, '');
-    const sourceName = state.procInput ? '重新上传的图片' : '页面中的处理结果';
-    const same = state.original ? pixelsMatch(out, state.original.canvas) : null;
-    if (same === true) {
-      status('✅ 还原完成（来源：' + sourceName + '，种子 ' + seedStr + '），与加密前图像像素完全一致 ✓', 'ok');
-    } else if (same === false) {
-      status('⚠️ 还原完成，但与原图像素不一致——请检查粘贴的种子是否为生成页面显示的种子', 'warn');
-    } else {
-      status('✅ 还原完成（来源：' + sourceName + '，种子 ' + seedStr + '）。提示：本会话未保留原图，如需校验像素一致性请重新上传原始图片。', 'ok');
-    }
-  });
-
-  function pixelsMatch(a, b) {
-    const w = Math.min(a.width, b.width), h = Math.min(a.height, b.height);
-    const da = a.getContext('2d').getImageData(0, 0, w, h).data;
-    const db = b.getContext('2d').getImageData(0, 0, w, h).data;
-    for (let i = 0; i < da.length; i++) if (da[i] !== db[i]) return false;
-    return true;
   }
 
   /* ---- 打乱映射可视化 ---- */
@@ -533,48 +435,106 @@ function parseSeedStr(s) {
       cell.style.height = size + 'px';
       cell.style.fontSize = (size <= 14 ? 9 : 11) + 'px';
       cell.textContent = v;
-      cell.title = '位置来自原图第 ' + v + ' 格';
+      cell.title = '位置来自上一张图第 ' + v + ' 格';
       box.appendChild(cell);
     });
   }
 
+  /* ---- 处理（唯一操作：自逆变换，同种子两次即还原） ---- */
+  $('btnProcess').addEventListener('click', function () {
+    if (!state.current) { status('请先上传图片', 'warn'); return; }
+    const src = state.current.canvas;
+
+    // 确定本次处理的 行/列/密钥：
+    // 1) 输入了种子 → 按种子处理（完整种子自带行列；旧版数字种子配合当前网格）
+    // 2) 未输入种子 → 根据行列值处理：网格未变则沿用上次种子（保证可逆），否则生成随机种子
+    let rows, cols, key;
+    const seedInput = $('seedIn').value.trim();
+    const parsed = seedInput ? parseSeedStr(seedInput) : null;
+    if (parsed) {
+      if (parsed.format === 'full') {
+        rows = parsed.rows; cols = parsed.cols; key = parsed.key;
+        $('inRows').value = rows; $('inCols').value = cols;
+        gridRows = rows; gridCols = cols;
+      } else {
+        const g = getGrid();
+        if (!g) { status('旧版数字种子不含行列：请先设置网格行列', 'warn'); return; }
+        rows = g.rows; cols = g.cols; key = parsed.key;
+      }
+    } else if (seedInput) {
+      status('种子格式无效（应为 行x列-密钥，如 8x8-1234567890）', 'warn');
+      return;
+    } else {
+      const g = getGrid();
+      if (!g) { status('网格行列需为 1~64 的整数', 'warn'); return; }
+      rows = g.rows; cols = g.cols;
+      if (state.activeSeed && state.activeSeed.rows === rows && state.activeSeed.cols === cols) {
+        key = state.activeSeed.key; // 沿用上次种子 → 再处理一次即可回到原图
+      } else {
+        key = (Math.random() * 0xFFFFFFFF) >>> 0; // 随机种子
+      }
+    }
+
+    if (rows > src.height || cols > src.width) {
+      status('网格行列不能大于图片像素数（当前 ' + src.width + '×' + src.height + '）', 'err');
+      return;
+    }
+
+    const perm = selfInversePermutation(rows * cols, key); // 自逆置换：处理两次即还原
+    const tileW = Math.floor(src.width / cols), tileH = Math.floor(src.height / rows);
+    const w = tileW * cols, h = tileH * rows;
+    const srcData = src.getContext('2d').getImageData(0, 0, w, h);
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const outData = out.getContext('2d').createImageData(w, h);
+    try {
+      applyTransform(outData, srcData, rows, cols, perm);
+    } catch (e) { status(e.message, 'err'); return; }
+    out.getContext('2d').putImageData(outData, 0, 0);
+
+    // 更新当前图与活跃种子
+    state.current = { canvas: out };
+    state.activeSeed = { rows: rows, cols: cols, key: key };
+    const seedStr = buildSeedStr(rows, cols, key);
+    $('seedOut').value = seedStr;
+    remember(seedStr);
+    renderMap(perm, rows, cols);
+    showCanvas('pvCurrent', out, '');
+
+    const same = state.original ? pixelsMatch(out, state.original.canvas) : null;
+    if (same === true) {
+      setTag('tagCurrent', '已还原', 'done');
+      status('✅ 处理完成：结果与原图一致（同一种子处理两次即回到原图）。种子：' + seedStr, 'ok');
+    } else {
+      setTag('tagCurrent', '已处理', 'ready');
+      status('✅ 处理完成：已按 ' + rows + '×' + cols + ' 网格打乱并负片取反，种子：' + seedStr + '。再次点击「处理」即可还原。', 'ok');
+    }
+  });
+
   /* ---- 上传入口 ---- */
-  bindUpload('dzOriginal', 'fileOriginal', function (file) {
+  bindUpload('dzImage', 'fileImage', function (file) {
     loadImage(file, MAX_DIM).then(function (obj) {
+      const clone = document.createElement('canvas');
+      clone.width = obj.canvas.width; clone.height = obj.canvas.height;
+      clone.getContext('2d').drawImage(obj.canvas, 0, 0);
       state.original = obj;
-      state.processed = null; state.restored = null; state.procInput = null;
-      state.perm = null; state.seed = null; state.seedStr = null;
-      $('dzProcessedFile').textContent = '';
+      state.current = { canvas: clone };
+      state.activeSeed = null;
+      $('dzImageFile').textContent = obj.name + ' · ' + fmtSize(obj.size) + '（' + obj.canvas.width + '×' + obj.canvas.height + '）';
       setTag('tagOriginal', '已就绪', 'ready');
-      setTag('tagProcessed', '未处理', 'pending');
-      setTag('tagRestored', '未还原', 'pending');
+      setTag('tagCurrent', '原始', 'pending');
       showCanvas('pvOriginal', obj.canvas, '');
-      $('dzOriginalFile').textContent = obj.name + ' · ' + fmtSize(obj.size) +
-        (obj.canvas.width !== 0 ? '' : '');
-      $('mapGrid').innerHTML = '<span class="map-empty">完成加密后在此显示打乱顺序</span>';
-      showCanvas('pvProcessed', null, '<span>点击「加密并打乱」生成</span>');
-      showCanvas('pvRestored', null, '<span>点击「还原原图」恢复</span>');
-      status('原始图片已载入：' + obj.name + '（' + obj.canvas.width + '×' + obj.canvas.height + '）。可调整网格后点击「加密并打乱」。', 'ok');
+      showCanvas('pvCurrent', clone, '');
+      $('mapGrid').innerHTML = '<span class="map-empty">处理后将在此显示打乱顺序</span>';
+      $('seedOut').value = '';
+      status('图片已载入。未输入种子时按网格行列自动生成随机种子；或粘贴种子后点击「处理」。', 'ok');
     }).catch(function (e) { status(e.message, 'err'); });
   });
 
-  bindUpload('dzProcessed', 'fileProcessed', function (file) {
-    loadImage(file, MAX_DIM).then(function (obj) {
-      state.procInput = obj;
-      state.restored = null;
-      setTag('tagProcessed', '已重新上传', 'ready');
-      setTag('tagRestored', '未还原', 'pending');
-      showCanvas('pvProcessed', obj.canvas, '');
-      showCanvas('pvRestored', null, '<span>点击「还原原图」恢复</span>');
-      $('dzProcessedFile').textContent = obj.name + ' · ' + fmtSize(obj.size) + '（' + obj.canvas.width + '×' + obj.canvas.height + '）';
-      status('处理后的图片已载入（' + obj.canvas.width + '×' + obj.canvas.height + '）。粘贴生成页面的种子（含行列，无需再设网格），点击「还原原图」即可无损还原。', 'ok');
-    }).catch(function (e) { status(e.message, 'err'); });
-  });
-
-  /* ---- 种子操作 ---- */
+  /* ---- 种子交互 ---- */
   $('btnCopySeed').addEventListener('click', function () {
     const v = $('seedOut').value;
-    if (!v) { status('尚无种子可复制，请先执行加密', 'warn'); return; }
+    if (!v) { status('尚无种子可复制，请先处理一次', 'warn'); return; }
     const done = function () { status('种子已复制：' + v, 'ok'); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(v).then(done, function () {
@@ -582,8 +542,6 @@ function parseSeedStr(s) {
       });
     } else { $('seedOut').select(); document.execCommand('copy'); done(); }
   });
-
-  /* 种子交互 */
   $('btnClearMem').addEventListener('click', function () {
     try { localStorage.removeItem(MEM_KEY); } catch (e) {}
     $('seedIn').value = '';
@@ -591,27 +549,20 @@ function parseSeedStr(s) {
     $('memHint').textContent = '';
     status('已清除本浏览器记忆的种子。', 'ok');
   });
-  loadMemory(); // 启动时恢复上次处理的种子（本浏览器记忆，种子含行列）
+  loadMemory(); // 启动时恢复上次使用的种子（本浏览器记忆，种子含行列）
 
-  /* ---- 下载 ---- */
-  function downloadCanvas(canvas, filename) {
-    canvas.toBlob(function (blob) {
+  /* ---- 下载当前结果 ---- */
+  $('btnDl').addEventListener('click', function () {
+    if (!state.current) { status('请先上传图片', 'warn'); return; }
+    const seedStr = $('seedOut').value || (gridRows + 'x' + gridCols);
+    state.current.canvas.toBlob(function (blob) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = filename;
+      a.download = 'processed_' + seedStr + '.png';
       document.body.appendChild(a);
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
     }, 'image/png');
-  }
-  $('btnDlProc').addEventListener('click', function () {
-    const c = (state.procInput ? state.procInput.canvas : (state.processed ? state.processed.canvas : null));
-    if (!c) { status('尚无处理结果可下载', 'warn'); return; }
-    downloadCanvas(c, 'shuffled_' + (state.seedStr || (gridRows + 'x' + gridCols)) + '.png');
-  });
-  $('btnDlRest').addEventListener('click', function () {
-    if (!state.restored) { status('尚无还原结果可下载', 'warn'); return; }
-    downloadCanvas(state.restored.canvas, 'restored.png');
   });
 })();
 </script>
