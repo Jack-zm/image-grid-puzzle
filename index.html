@@ -101,15 +101,6 @@
       repeating-conic-gradient(#f1f2f7 0% 25%, #fff 0% 50%) 0 0 / 22px 22px;
   }
   .holder canvas{max-width:100%; max-height:420px; border-radius:6px; display:block}
-  .mapping{margin-top:16px}
-  .mapping h3{font-size:13px; margin:0 0 8px; color:var(--muted); font-weight:600}
-  #mapGrid{display:flex; flex-wrap:wrap; gap:2px; max-height:220px; overflow:auto}
-  #mapGrid .cell{
-    display:flex; align-items:center; justify-content:center;
-    background:var(--accent-weak); color:var(--accent-ink);
-    border-radius:4px; font-family:ui-monospace,Consolas,monospace; font-weight:600;
-  }
-  .map-empty{font-size:12.5px; color:var(--muted)}
   footer{
     max-width:1120px; margin:6px auto 26px; padding:0 16px;
     font-size:12.5px; color:var(--muted);
@@ -152,14 +143,11 @@
     <div class="hint">同一图片用<strong>相同种子</strong>处理两次即回到原图（打乱 ↔ 还原）。未输入种子时：首次按当前行列生成随机种子；网格未变时再次点击沿用上次种子（即可逆）。</div>
 
     <h2><span class="step-num">4</span>种子（可选）</h2>
-    <div class="hint" style="margin-top:-4px">种子格式「行x列-密钥」（如 8x8-1234567890），<strong>已包含分割行列</strong>。填入种子时按种子处理（优先于网格输入）；留空时页面按行列自动生成随机种子，并显示在下方。</div>
+    <div class="hint" style="margin-top:-4px">种子格式「行x列-密钥」（如 8x8-1234567890），<strong>已包含分割行列</strong>。填入种子时按种子处理（优先于网格输入）；留空时页面按行列自动生成随机种子，并填入此框供复制。</div>
     <div class="seed-row">
-      <input id="seedIn" placeholder="粘贴种子（可选；填入后按种子处理）">
+      <input id="seed" placeholder="种子（可粘贴；处理后会填入本次使用的种子）" spellcheck="false" autocomplete="off">
+      <button class="btn-plain" id="btnCopySeed" title="复制种子">复制</button>
       <button class="btn-plain" id="btnClearMem" title="清除本浏览器记住的种子">清除记忆</button>
-    </div>
-    <div class="seed-row">
-      <input id="seedOut" readonly placeholder="处理使用的种子（自动生成/更新）">
-      <button class="btn-plain" id="btnCopySeed">复制</button>
     </div>
     <div class="hint" id="memHint"></div>
 
@@ -185,18 +173,13 @@
         <div class="holder" id="pvCurrent"><span>上传图片后点击「处理」</span></div>
       </figure>
     </div>
-
-    <div class="mapping">
-      <h3>最近一次处理的打乱映射（每格数字 = 该位置取自上一张图的第几格，从 0 编号）</h3>
-      <div id="mapGrid"><span class="map-empty">处理后将在此显示打乱顺序</span></div>
-    </div>
   </section>
 </main>
 
 <footer>
   <div class="note">
     <strong>工作原理：</strong>① 将图片按「行×列」切成小格（行列存于变量 gridRows/gridCols，可在左侧修改）；② 对每个小格做负片取反（255 − 像素值）；③ 按种子里的密钥生成<strong>自逆置换</strong>并打乱小格。<strong>处理是自逆运算：负片取反两次即复原、自逆置换作用两次即还原，因此用同一种子处理两次必然回到原图</strong>。
-    未输入种子时：按当前行列自动生成随机种子处理，种子会显示在「处理使用的种子」中；网格不变时再次点击「处理」会沿用该种子，从而可逆。输入种子时：按种子（含行列）处理，种子优先于网格输入。
+    未输入种子时：按当前行列自动生成随机种子处理，种子会自动填入种子框（可复制保存）；网格不变时再次点击「处理」会沿用该种子，从而可逆。输入种子时：按种子（含行列）处理，种子优先于网格输入，处理后种子框保持为你输入的值。
     <br>注意：请使用 PNG 等<strong>无损格式</strong>保存，保证像素一致。<strong>所有功能均在浏览器本地运行（纯前端 JS + Canvas），页面无后端、不加载任何外部资源，图片不会上传到任何服务器。</strong>
   </div>
 </footer>
@@ -374,7 +357,7 @@ function parseSeedStr(s) {
       if (s) {
         const parsed = parseSeedStr(s);
         if (parsed && parsed.format === 'full') {
-          $('seedIn').value = s;
+          $('seed').value = s;
           $('inRows').value = parsed.rows; $('inCols').value = parsed.cols;
           gridRows = parsed.rows; gridCols = parsed.cols;
           $('memHint').textContent = '已载入上次使用的种子（含行列，已同步网格）。可修改或点击「清除记忆」。';
@@ -418,38 +401,16 @@ function parseSeedStr(s) {
     });
   }
 
-  /* ---- 打乱映射可视化 ---- */
-  function renderMap(perm, rows, cols) {
-    const box = $('mapGrid');
-    box.innerHTML = '';
-    const total = rows * cols;
-    if (total > 30 * 30) {
-      box.innerHTML = '<span class="map-empty">网格过大（' + total + ' 格），映射见种子：' + JSON.stringify(perm) + '</span>';
-      return;
-    }
-    const size = total <= 100 ? 30 : (total <= 400 ? 22 : 14);
-    perm.forEach(function (v) {
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.style.width = size + 'px';
-      cell.style.height = size + 'px';
-      cell.style.fontSize = (size <= 14 ? 9 : 11) + 'px';
-      cell.textContent = v;
-      cell.title = '位置来自上一张图第 ' + v + ' 格';
-      box.appendChild(cell);
-    });
-  }
-
   /* ---- 处理（唯一操作：自逆变换，同种子两次即还原） ---- */
   $('btnProcess').addEventListener('click', function () {
     if (!state.current) { status('请先上传图片', 'warn'); return; }
     const src = state.current.canvas;
 
     // 确定本次处理的 行/列/密钥：
-    // 1) 输入了种子 → 按种子处理（完整种子自带行列；旧版数字种子配合当前网格）
-    // 2) 未输入种子 → 根据行列值处理：网格未变则沿用上次种子（保证可逆），否则生成随机种子
+    // 1) 输入了种子 → 按种子处理（完整种子自带行列；旧版数字种子配合当前网格），种子框保持用户输入值
+    // 2) 未输入种子 → 根据行列值处理：网格未变则沿用上次种子（保证可逆），否则生成随机种子并填入种子框
     let rows, cols, key;
-    const seedInput = $('seedIn').value.trim();
+    const seedInput = $('seed').value.trim();
     const parsed = seedInput ? parseSeedStr(seedInput) : null;
     if (parsed) {
       if (parsed.format === 'full') {
@@ -496,9 +457,9 @@ function parseSeedStr(s) {
     state.current = { canvas: out };
     state.activeSeed = { rows: rows, cols: cols, key: key };
     const seedStr = buildSeedStr(rows, cols, key);
-    $('seedOut').value = seedStr;
+    // 未输入种子时，把本次生成的种子填入种子框（供复制）；输入了种子则保持用户输入值
+    if (!$('seed').value.trim()) $('seed').value = seedStr;
     remember(seedStr);
-    renderMap(perm, rows, cols);
     showCanvas('pvCurrent', out, '');
 
     const same = state.original ? pixelsMatch(out, state.original.canvas) : null;
@@ -525,27 +486,24 @@ function parseSeedStr(s) {
       setTag('tagCurrent', '原始', 'pending');
       showCanvas('pvOriginal', obj.canvas, '');
       showCanvas('pvCurrent', clone, '');
-      $('mapGrid').innerHTML = '<span class="map-empty">处理后将在此显示打乱顺序</span>';
-      $('seedOut').value = '';
       status('图片已载入。未输入种子时按网格行列自动生成随机种子；或粘贴种子后点击「处理」。', 'ok');
     }).catch(function (e) { status(e.message, 'err'); });
   });
 
   /* ---- 种子交互 ---- */
   $('btnCopySeed').addEventListener('click', function () {
-    const v = $('seedOut').value;
+    const v = $('seed').value.trim();
     if (!v) { status('尚无种子可复制，请先处理一次', 'warn'); return; }
     const done = function () { status('种子已复制：' + v, 'ok'); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(v).then(done, function () {
-        $('seedOut').select(); document.execCommand('copy'); done();
+        $('seed').select(); document.execCommand('copy'); done();
       });
-    } else { $('seedOut').select(); document.execCommand('copy'); done(); }
+    } else { $('seed').select(); document.execCommand('copy'); done(); }
   });
   $('btnClearMem').addEventListener('click', function () {
     try { localStorage.removeItem(MEM_KEY); } catch (e) {}
-    $('seedIn').value = '';
-    $('seedOut').value = '';
+    $('seed').value = '';
     $('memHint').textContent = '';
     status('已清除本浏览器记忆的种子。', 'ok');
   });
@@ -554,7 +512,7 @@ function parseSeedStr(s) {
   /* ---- 下载当前结果 ---- */
   $('btnDl').addEventListener('click', function () {
     if (!state.current) { status('请先上传图片', 'warn'); return; }
-    const seedStr = $('seedOut').value || (gridRows + 'x' + gridCols);
+    const seedStr = $('seed').value.trim() || (gridRows + 'x' + gridCols);
     state.current.canvas.toBlob(function (blob) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
